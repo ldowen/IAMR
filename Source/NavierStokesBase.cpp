@@ -12,7 +12,6 @@
 
 #include <NavierStokesBase.H>
 #include <NAVIERSTOKES_F.H>
-#include <NAVIERSTOKESBASE_F.H>
 #include <NSB_K.H>
 
 #include <PROB_NS_F.H>
