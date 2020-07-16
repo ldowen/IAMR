@@ -25,7 +25,7 @@ CEXE_headers += MacOutFlowBC.H \
 
 CEXE_headers += SyncRegister.H RegType.H
 
-FEXE_headers += SYNCREG_F.H PROJOUTFLOWBC_F.H MACOUTFLOWBC_F.H
+FEXE_headers += PROJOUTFLOWBC_F.H MACOUTFLOWBC_F.H
 #
 # Disconnect MacOperators for different mass continuity.
 #
