@@ -7,6 +7,7 @@
 #include <AMReX_EBAmrUtil.H>
 #include <AMReX_EBInterpolater.H>
 #include <AMReX_EBFArrayBox.H>
+#include <AMReX_PhysBCFunct.H>
 #include <iamr_mol.H>
 #endif
 
@@ -20,6 +21,19 @@
 #include<AMReX_PlotFileUtil.H>
 
 using namespace amrex;
+
+struct DummyFill
+{
+    AMREX_GPU_DEVICE
+    void operator() (const IntVect& iv, Array4<Real> const& dest,
+                     const int dcomp, const int numcomp,
+                     GeometryData const& geom, const Real time,
+                     const BCRec* bcr, const int bcomp,
+                     const int orig_comp) const
+        {   
+            // Dummy
+        }   
+};
 
 Godunov*    NavierStokesBase::godunov       = 0;
 ErrorList   NavierStokesBase::err_list;
@@ -153,6 +167,7 @@ namespace
     bool             restart_from_nonparticle_chkfile = false;
     int              pverbose                         = 2;
 }
+
 
 AmrTracerParticleContainer* NavierStokesBase::theNSPC () { return NSPC; }
 #endif
@@ -1215,6 +1230,25 @@ NavierStokesBase::create_umac_grown (int nGrow)
             u_mac[idim].copy(u_mac_save);
         }
     }
+
+    //Print() << " Calling GpuBndryFuncFab for u_mac \n";  
+    //Print() << u_mac[0].boxArray().ixType().cellCentered() << "\n";  
+    //Print() << u_mac[0].boxArray().ixType() << "\n";  
+
+    //GpuBndryFuncFab<DummyFill> gpu_bndry_func(DummyFill{});
+    //for (int idim = 0; idim < AMREX_SPACEDIM; ++idim)
+    //{
+    //   Vector<BCRec> velocity_math_bc = fetchBCArray(State_Type,Xvel+idim,1);
+    //   for (MFIter mfi(u_mac[idim]); mfi.isValid(); ++mfi)
+    //   {
+    //      const Box& bx   = mfi.nodaltilebox(idim);
+    //      FArrayBox& data = u_mac[idim][mfi];
+    //      gpu_bndry_func(bx,data,0,1,geom,0.0,velocity_math_bc,0,0);
+    //   }
+    //}
+
+    //Abort();
+
     //
     // Now we set the boundary data
     // FillBoundary fills grow cells that overlap valid regions.
@@ -1252,6 +1286,7 @@ NavierStokesBase::create_umac_grown (int nGrow)
         // call FillBoundary to make sure that fine/fine grow cells are valid
         u_mac[idim].FillBoundary(geom.periodicity());
     }
+
 }
 
 void
@@ -2126,12 +2161,12 @@ NavierStokesBase::level_sync (int crse_iteration)
 
     Vector<int*>         sync_bc(N);
     Vector< Vector<int> > sync_bc_array(N);
-
     for (int i = 0; i < N; i++)
     {
-        sync_bc_array[i] = getBCArray(State_Type,i,Xvel,BL_SPACEDIM);
+        sync_bc_array[i] = getBCArray(State_Type,i,Xvel,AMREX_SPACEDIM);
         sync_bc[i] = sync_bc_array[i].dataPtr();
     }
+      
 
     //
     // Multilevel or single-level sync projection.
@@ -2164,7 +2199,7 @@ NavierStokesBase::level_sync (int crse_iteration)
     // Interpolate Vsync to fine grid correction in Vcorr.
     //
     SyncInterp(Vsync, level, V_corr, level+1, ratio,
-	       0, 0, BL_SPACEDIM, 0 , dt, sync_bc.dataPtr());
+               0, 0, AMREX_SPACEDIM, 0 , dt, sync_bc.dataPtr());
     //
     // The multilevel projection.  This computes the projection and
     // adds in its contribution to levels (level) and (level+1).
@@ -2205,9 +2240,9 @@ NavierStokesBase::level_sync (int crse_iteration)
     for (int i = 0; i < Nf; i++)
     {
       fine_sync_bc_array[i] = getLevel(level+1).getBCArray(State_Type,
-							   i,
-							   Xvel,
-							   BL_SPACEDIM);
+                                                           i,
+                                                           Xvel,
+                                                           AMREX_SPACEDIM);
       fine_sync_bc[i] = fine_sync_bc_array[i].dataPtr();
     }
 
@@ -2220,10 +2255,10 @@ NavierStokesBase::level_sync (int crse_iteration)
       MultiFab&     U_new    = flev.get_new_data(State_Type);
 
       SyncInterp(V_corr, level+1, U_new, lev, ratio,
-		 0, 0, BL_SPACEDIM, 1 , dt, fine_sync_bc.dataPtr());
+                 0, 0, AMREX_SPACEDIM, 1 , dt, fine_sync_bc.dataPtr());
       SyncProjInterp(phi, level+1, P_new, P_old, lev, ratio,
-		     first_crse_step_after_initial_iters,
-		     cur_crse_pres_time, prev_crse_pres_time);
+                     first_crse_step_after_initial_iters,
+                     cur_crse_pres_time, prev_crse_pres_time);
     }
 
     if (state[Press_Type].descriptor()->timeType() == StateDescriptor::Point)
@@ -3123,38 +3158,35 @@ NavierStokesBase::sync_cleanup (MultiFab*& DeltaSsync)
 //
 static
 void
-set_bc_new (int*            bc_new,
-            int             n,
-            int             src_comp,
-            const int*      clo,
-            const int*      chi,
-            const int*      cdomlo,
-            const int*      cdomhi,
-            const BoxArray& cgrids,
-            int**           bc_orig_qty)
+set_bcrec_new (Vector<BCRec>   bcrec,
+               int             ncomp,
+               int             src_comp,
+               const Box&      box,
+               const Box&      domain,
+               const BoxArray& cgrids,
+               int**           bc_orig_qty)
 
 {
-    for (int dir = 0; dir < BL_SPACEDIM; dir++)
-    {
-        int bc_index = (n+src_comp)*(2*BL_SPACEDIM) + dir;
-        bc_new[bc_index]             = INT_DIR;
-        bc_new[bc_index+BL_SPACEDIM] = INT_DIR;
-
-        if (clo[dir] < cdomlo[dir] || chi[dir] > cdomhi[dir])
-        {
-            for (int crse = 0, N = cgrids.size(); crse < N; crse++)
-            {
-                const Box& bx = cgrids[crse];
-                const int* c_lo = bx.loVect();
-                const int* c_hi = bx.hiVect();
-
-                if (clo[dir] < cdomlo[dir] && c_lo[dir] == cdomlo[dir])
-                    bc_new[bc_index] = bc_orig_qty[crse][bc_index];
-                if (chi[dir] > cdomhi[dir] && c_hi[dir] == cdomhi[dir])
-                    bc_new[bc_index+BL_SPACEDIM] = bc_orig_qty[crse][bc_index+BL_SPACEDIM];
+   for (int n = 0; n < ncomp; n++) {
+      for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
+      {
+         int bc_index = (src_comp+n)*(2*AMREX_SPACEDIM) + dir; 
+         bcrec[n].setLo(dir,INT_DIR);
+         bcrec[n].setHi(dir,INT_DIR);
+         if ( ( box.smallEnd(dir) < domain.smallEnd(dir) ) ||
+              ( box.bigEnd(dir)   > domain.bigEnd(dir) ) ) {
+            for (int crse = 0; crse < cgrids.size(); crse++) {
+               const Box& crsebx = cgrids[crse];
+               if ( ( box.smallEnd(dir) < domain.smallEnd(dir) ) && ( crsebx.smallEnd(dir) == domain.smallEnd(dir) ) ) {
+                  bcrec[n].setLo(dir,bc_orig_qty[crse][bc_index]);
+               }
+               if ( ( box.bigEnd(dir) > domain.bigEnd(dir) ) && ( crsebx.bigEnd(dir) == domain.bigEnd(dir) ) ) {
+                  bcrec[n].setHi(dir,bc_orig_qty[crse][bc_index+AMREX_SPACEDIM]);
+               }
             }
-        }
-    }
+         }
+      }
+   }
 }
 
 //
@@ -3210,22 +3242,20 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
     }
 #endif
 
-    NavierStokesBase& fine_level = getLevel(f_lev);
-    const BoxArray& fgrids     = fine_level.boxArray();
+    NavierStokesBase& fine_level     = getLevel(f_lev);
+    const BoxArray& fgrids           = fine_level.boxArray();
     const DistributionMapping& fdmap = fine_level.DistributionMap();
-    const Geometry& fgeom      = parent->Geom(f_lev);
-    const BoxArray& cgrids     = getLevel(c_lev).boxArray();
-    const Geometry& cgeom      = parent->Geom(c_lev);
-    const Real*     dx_crse    = cgeom.CellSize();
-    Box             cdomain    = amrex::coarsen(fgeom.Domain(),ratio);
-    const int*      cdomlo     = cdomain.loVect();
-    const int*      cdomhi     = cdomain.hiVect();
-    const int       N          = fgrids.size();
+    const Geometry& fgeom            = parent->Geom(f_lev);
+    const BoxArray& cgrids           = getLevel(c_lev).boxArray();
+    const Geometry& cgeom            = parent->Geom(c_lev);
+    Box             cdomain          = amrex::coarsen(fgeom.Domain(),ratio);
+    const int       N                = fgrids.size();
 
     BoxArray cdataBA(N);
 
-    for (int i = 0; i < N; i++)
+    for (int i = 0; i < N; i++) {
         cdataBA.set(i,interpolater->CoarseBox(fgrids[i],ratio));
+    }
     //
     // Note: The boxes in cdataBA may NOT be disjoint !!!
     //
@@ -3260,43 +3290,26 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
     ///////
 
     // tiling may not be needed here, but what the hey
-
+    GpuBndryFuncFab<DummyFill> gpu_bndry_func(DummyFill{});
 #ifdef _OPENMP
-#pragma omp parallel
+#pragma omp parallel if (Gpu::notInLaunchRegion()) 
 #endif
+    for (MFIter mfi(cdataMF,TilingIfNotGPU()); mfi.isValid(); ++mfi)
     {
-      int* bc_new = new int[2*AMREX_SPACEDIM*(src_comp+num_comp)];
-      for (MFIter mfi(cdataMF,true); mfi.isValid(); ++mfi)
-      {
+       const Box& bx   = mfi.tilebox();
+       FArrayBox& data = cdataMF[mfi];
 
-        FArrayBox&  cdata   = cdataMF[mfi];
-        const int*  clo     = cdata.loVect();
-        const int*  chi     = cdata.hiVect();
-        const Box&  bx      = mfi.tilebox();
-        RealBox     gridloc = RealBox(bx,fine_level.geom.CellSize(),fine_level.geom.ProbLo());
-        const int*  lo      = bx.loVect();
-        const int*  hi      = bx.hiVect();
-        const Real* xlo     = gridloc.lo();
-
-        for (int n = 0; n < num_comp; n++)
-        {
-          set_bc_new(bc_new,n,src_comp,lo,hi,cdomlo,cdomhi,cgrids,bc_orig_qty);
-          filcc_tile(ARLIM(lo),ARLIM(hi),
-                     cdata.dataPtr(n), ARLIM(clo), ARLIM(chi),
-                     cdomlo, cdomhi, dx_crse, xlo,
-                     &(bc_new[2*AMREX_SPACEDIM*(n+src_comp)]));
-        }
-      }
-      delete [] bc_new;
+       Vector<BCRec> bx_bcrec(num_comp);
+       set_bcrec_new(bx_bcrec,num_comp,src_comp,bx,cdomain,cgrids,bc_orig_qty);
+       gpu_bndry_func(bx,data,0,num_comp,geom,0.0, bx_bcrec,0,0);
     }
-
     cdataMF.EnforcePeriodicity(cgeom.periodicity());
+
     //
     // Interpolate from cdataMF to fdata and update FineSync.
     // Note that FineSync and cdataMF will have the same distribution
     // since the length of their BoxArrays are equal.
     //
-
     MultiFab* fine_stateMF = 0;
     if (interpolater == &protected_interp)
     {
@@ -3320,8 +3333,6 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
          FArrayBox& cdata = cdataMF[mfi];
          const Box&  bx   = mfi.tilebox();
          const Box cbx    = interpolater->CoarseBox(bx,ratio);
-         const int* clo   = cbx.loVect();
-         const int* chi   = cbx.hiVect();
 
 #ifdef AMREX_USE_EB
          EBFArrayBox fdata(flags[mfi],bx,num_comp,FineSync[mfi].arena());
@@ -3329,30 +3340,17 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
          FArrayBox fdata(bx, num_comp);
 #endif
          Elixir fdata_i = fdata.elixir();
+
          //
          // Set the boundary condition array for interpolation.
          //
-         Vector<BCRec> bc_interp(num_comp);
-         int* bc_new = new int[2*AMREX_SPACEDIM*(src_comp+num_comp)];
-         for (int n = 0; n < num_comp; n++)
-         {
-             set_bc_new(bc_new,n,src_comp,clo,chi,cdomlo,cdomhi,cgrids,bc_orig_qty);
-         }
-
-         for (int n = 0; n < num_comp; n++)
-         {
-            for (int dir = 0; dir < AMREX_SPACEDIM; dir++)
-            {
-               int bc_index = (n+src_comp)*(2*AMREX_SPACEDIM) + dir;
-               bc_interp[n].setLo(dir,bc_new[bc_index]);
-               bc_interp[n].setHi(dir,bc_new[bc_index+AMREX_SPACEDIM]);
-            }
-         }
+         Vector<BCRec> bx_bcrec(num_comp);
+         set_bcrec_new(bx_bcrec,num_comp,src_comp,cbx,cdomain,cgrids,bc_orig_qty);
 
          //ScaleCrseSyncInterp(cdata, c_lev, num_comp);
 
          interpolater->interp(cdata,0,fdata,0,num_comp,bx,ratio,
-                              cgeom,fgeom,bc_interp,src_comp,State_Type,RunOn::Gpu);
+                              cgeom,fgeom,bx_bcrec,src_comp,State_Type,RunOn::Gpu);
 
          //reScaleFineSyncInterp(fdata, f_lev, num_comp);
 
@@ -3375,7 +3373,7 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
                FArrayBox& fine_state = (*fine_stateMF)[mfi];
                interpolater->protect(cdata,0,fdata,0,fine_state,state_comp,
                                      num_comp,bx,ratio,
-                                     cgeom,fgeom,bc_interp,RunOn::Gpu);
+                                     cgeom,fgeom,bx_bcrec,RunOn::Gpu);
             }
 
             auto const& fsync       = FineSync.array(mfi,dest_comp);
@@ -3399,7 +3397,6 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
                fsync(i,j,k,n) = finedata(i,j,k,n);
             });
          }
-         delete [] bc_new;
        }
     }
 }
@@ -4747,7 +4744,7 @@ NavierStokesBase::ParticleDerive (const std::string& name,
 Vector<int>
 NavierStokesBase::fetchBCArray (int State_Type, const Box& bx, int scomp, int ncomp)
 {
-    Vector<int> bc(2*BL_SPACEDIM*ncomp);
+    Vector<int> bc(2*AMREX_SPACEDIM*ncomp);
     BCRec bcr;
     const StateDescriptor* stDesc;
     const Box& domain = geom.Domain();
@@ -4758,8 +4755,8 @@ NavierStokesBase::fetchBCArray (int State_Type, const Box& bx, int scomp, int nc
       setBC(bx,domain,stDesc->getBC(scomp+n),bcr);
 
       const int* b_rec = bcr.vect();
-      for (int m = 0; m < 2*BL_SPACEDIM; m++)
-	bc[2*BL_SPACEDIM*n + m] = b_rec[m];
+      for (int m = 0; m < 2*AMREX_SPACEDIM; m++)
+         bc[2*AMREX_SPACEDIM*n + m] = b_rec[m];
     }
 
     return bc;

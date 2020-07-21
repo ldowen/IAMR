@@ -183,7 +183,7 @@ public:
     // Boundary condition access functions.
     //
     amrex::Vector<int> fetchBCArray (int State_Type, const amrex::Box& bx,
-				     int scomp, int ncomp);
+				                         int scomp, int ncomp);
 
     amrex::Vector<amrex::BCRec> fetchBCArray (int State_Type, int scomp, int ncomp);
 
