@@ -14,11 +14,7 @@ extern "C" {
                      const int * domlo, const int * domhi,
                      const amrex::Real * dx_crse, const amrex::Real * xlo, 
                      const int * bc);
-    void filcc_tile (ARLIM_P(lo), ARLIM_P(hi),
-                          const amrex::Real * q, ARLIM_P(q_lo), ARLIM_P(q_hi),
-                          const int * domlo, const int * domhi,
-                          const amrex::Real * dx_crse, const amrex::Real * xlo, 
-                          const int * bc);
+
 #if (BL_SPACEDIM == 2)
     void gradp (const amrex::Real* p, ARLIM_P(p_lo), ARLIM_P(p_hi),
                      const amrex::Real* gp, ARLIM_P(gp_lo), ARLIM_P(gp_hi),
@@ -114,13 +110,6 @@ extern "C" {
     void edge_interp(const int* flo, const int* fhi,
                           const int* nc, const int* refRatio, const int* dir,
                           amrex::Real*       fine, ARLIM_P(flo), ARLIM_P(fhi));
-    
-    void pc_edge_interp(const int* lo, const int* hi,
-                                const int* nc, const int* refRatio, const int* dir,
-                                const amrex::Real* crse, ARLIM_P(clo), ARLIM_P(chi),
-                                amrex::Real*       fine, ARLIM_P(flo), ARLIM_P(fhi));
-
-
 
 #ifdef __cplusplus
 }

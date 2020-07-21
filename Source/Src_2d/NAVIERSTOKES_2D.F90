@@ -20,8 +20,7 @@ module navierstokes_2d_module
   private 
 
   public gradp, fort_putdown, fort_maxval, &
-       summass, summass_eb, summass_cyl, cen2edg, edge_interp, &
-       pc_edge_interp, filcc_tile
+       summass, summass_eb, summass_cyl, cen2edg, edge_interp
   
 contains
 
@@ -43,6 +42,8 @@ contains
       integer    is_full
       integer    i,j
       REAL_T     ddx, ddy
+
+      write(*,*) " in gradp"
 
       if (is_full .eq. 0) then
          ddx = half/dx(1)
@@ -110,6 +111,7 @@ contains
          end do
       end do
 
+      write(*,*) " in fort_putdown"
     end subroutine fort_putdown
 
 !c :: ----------------------------------------------------------
@@ -136,6 +138,7 @@ contains
              mxval = max(mxval, rho(i,j))
           end do
        end do
+      write(*,*) " in fort_maxval"
 
      end subroutine fort_maxval
 
@@ -181,6 +184,7 @@ contains
 	     mass = mass + vol*rho(i,j)
 	  end do
        end do
+      write(*,*) " in summass"
 
      end subroutine summass
 
@@ -228,6 +232,7 @@ contains
 	     mass = mass + vf(i,j)*vol*rho(i,j)
 	  end do
        end do
+      write(*,*) " in summass_eb"
 
      end subroutine summass_eb
      
@@ -286,6 +291,7 @@ contains
              end do
           endif
        end do
+      write(*,*) " in summass_cyl"
 
      end subroutine summass_cyl
 
@@ -366,6 +372,7 @@ contains
             end do
          end if
       end if
+      write(*,*) " in cen2edg"
     end subroutine cen2edg
 
 !c-----------------------------------------------------------------------
@@ -411,95 +418,8 @@ contains
             enddo
          enddo
       endif
+      write(*,*) " in edge_interp"
 
     end subroutine edge_interp
-!c-----------------------------------------------------------------------
-      subroutine pc_edge_interp(lo, hi, nc, ratio, dir,&
-          crse, crse_l0, crse_l1, crse_h0, crse_h1,&
-          fine, fine_l0, fine_l1, fine_h0, fine_h1) &
-          bind(C,name="pc_edge_interp")
-      implicit none
-      integer lo(2),hi(2), nc, ratio(0:2-1), dir
-      integer crse_l0, crse_l1, crse_h0, crse_h1
-      integer fine_l0, fine_l1, fine_h0, fine_h1
-      DOUBLE PRECISION crse(crse_l0:crse_h0,crse_l1:crse_h1,nc)
-      DOUBLE PRECISION fine(fine_l0:fine_h0,fine_l1:fine_h1,nc)
-      integer i,j,ii,jj,n,L
-
-!c     For edge-based data, fill fine values with piecewise-constant interp of coarse data.
-!c     Operate only on faces that overlap--ie, only fill the fine faces that make up each
-!c     coarse face, leave the in-between faces alone.
-      if (dir.eq.0) then
-         do n=1,nc
-            do j=lo(2),hi(2)
-               jj = ratio(1)*j
-               do i=lo(1),hi(1)
-                  ii = ratio(0)*i
-                  do L=0,ratio(1)-1
-                     fine(ii,jj+L,n) = crse(i,j,n)
-                  enddo
-               enddo
-            enddo
-         enddo
-      else
-         do n=1,nc
-            do j=lo(2),hi(2)
-               jj = ratio(1)*j
-               do i=lo(1),hi(1)
-                  ii = ratio(0)*i
-                  do L=0,ratio(0)-1
-                     fine(ii+L,jj,n) = crse(i,j,n)
-                  enddo
-               enddo
-            enddo
-         enddo
-      endif
-
-    end subroutine pc_edge_interp
-
-! ::: -----------------------------------------------------------
-! ::: This routine is intended to be a generic fill function
-! ::: for cell-centered data.  It knows how to extrapolate
-! ::: and reflect data and is used to supplement the problem-specific
-! ::: fill functions which call it.
-! ::: 
-! ::: INPUTS/OUTPUTS:
-! ::: q           <=  array to fill
-! ::: lo,hi        => index extent of loops
-! ::: q_l,q_h      => index extent of q array
-! ::: domlo,domhi  => index extent of problem domain
-! ::: dx           => cell spacing
-! ::: xlo          => physical location of lower left hand
-! :::	              corner of q array
-! ::: bc	   => array of boundary flags bc(SPACEDIM,lo:hi)
-! ::: 
-! ::: NOTE: all corner as well as edge data is filled if not EXT_DIR
-! ::: -----------------------------------------------------------
-
-    subroutine filcc_tile(l1,l2,h1,h2,q,q_l1,q_l2,q_h1,q_h2,&
-         domlo,domhi,dx,xlo,bc) bind(C,name="filcc_tile")
-
-      use amrex_filcc_module, only: filccn
-      
-      implicit none
-
-      integer    l1,l2,h1,h2
-      integer    q_l1, q_l2, q_h1, q_h2
-      integer    domlo(SDIM), domhi(SDIM)
-      integer    bc(SDIM,2)
-      REAL_T     xlo(SDIM), dx(SDIM)
-      REAL_T     q(q_l1:q_h1,q_l2:q_h2)
-
-      integer :: q_lo(3), q_hi(3)
-      integer    lo(3),hi(3)
-      
-      lo   = [l1, l2, 0]
-      hi   = [h1, h2, 0]
-      q_lo = [q_l1, q_l2, 0]
-      q_hi = [q_h1, q_h2, 0]
-
-      call filccn(lo, hi, q, q_lo, q_hi, 1, domlo, domhi, dx, xlo, bc)
-
-    end subroutine filcc_tile
 
   end module navierstokes_2d_module
