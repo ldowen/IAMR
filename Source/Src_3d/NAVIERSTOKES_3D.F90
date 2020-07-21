@@ -22,7 +22,7 @@ module navierstokes_3d_module
 #ifdef SUMJET
             sum_jet, &
 #endif
-            fort_maxval, summass, summass_eb, summass_cyl, cen2edg, edge_interp
+            fort_maxval, summass, summass_eb, cen2edg
   
 contains
 
@@ -862,58 +862,6 @@ contains
 
      end subroutine summass_eb
 
-!c :: ----------------------------------------------------------
-!c :: SUMMASSCYL
-!c ::    MASS = sum{ vol(i,j,k)*rho(i,j,k) } over subregion cylinder
-!c ::
-!c :: INPUTS / OUTPUTS:
-!c ::  rho        => density field
-!c ::  DIMS(rho)  => index limits of rho aray
-!c ::  lo,hi      => index limits of grid interior
-!c ::  delta	 => cell size
-!c ::  mass      <=  total mass
-!c ::  r		 => radius at cell center
-!c ::  tmp        => temp column array
-!c :: ----------------------------------------------------------
-!c ::
-       subroutine summass_cyl(rho,DIMS(rho),DIMS(grid),delta, &
-                              plo,vws_dz,vws_Rcyl,mass) &
-                              bind(C,name="summass_cyl")
-
-       implicit none
-
-       integer DIMDEC(rho)
-       integer DIMDEC(grid)
-       REAL_T  mass, delta(SDIM), plo(SDIM), vws_dz, vws_Rcyl
-       REAL_T  rho(DIMV(rho))
-
-       integer i, j, k
-       REAL_T  vol, x, y, z, r
-
-       vol = delta(1)*delta(2)*delta(3)
-
-       mass = zero
-
-       do k = ARG_L3(grid), ARG_H3(grid)
-          z = plo(3) + (k+half)*delta(3)
-          if (z-plo(3) .le. vws_dz) then
-             do j = ARG_L2(grid), ARG_H2(grid)
-                y = plo(2) + (j+half)*delta(2) 
-                do i = ARG_L1(grid), ARG_H1(grid)
-                   x = plo(1) + (i+half)*delta(1)
-                   r = SQRT(x*x + y*y)
-                   if (r .le. vws_Rcyl) then
-                      mass = mass + rho(i,j,k)
-                   end if
-                end do
-             end do
-          end if
-       end do
-
-       mass = vol*mass
-
-       end subroutine summass_cyl
-
 !c-----------------------------------------------------------------------
 !c     This routine fills an edge-centered fab from a cell-centered
 !c     fab using simple linear interpolation.
@@ -1031,83 +979,5 @@ contains
       end if
 
       end subroutine cen2edg
-      
-!c-----------------------------------------------------------------------
-
-      subroutine edge_interp (flo, fhi, nc, ratio, dir, &
-          fine, fine_l0, fine_l1, fine_l2, fine_h0, fine_h1, fine_h2)&
-           bind(C,name="edge_interp")
-           
-      implicit none
-      integer flo(0:3-1), fhi(0:3-1), nc, ratio(0:3-1), dir
-      integer fine_l0, fine_l1, fine_l2, fine_h0, fine_h1, fine_h2
-      DOUBLE PRECISION &
-          fine(fine_l0:fine_h0,fine_l1:fine_h1,fine_l2:fine_h2,nc)
-      integer i,j,k,n,P,M,L
-      DOUBLE PRECISION val, df
-!c
-!c     Do linear in dir, pc transverse to dir, leave alone the fine values
-!c     lining up with coarse edges--assume these have been set to hold the 
-!c     values you want to interpolate to the rest.
-!c
-      if (dir.eq.0) then
-         do n=1,nc
-            do k=flo(2),fhi(2),ratio(2)
-               do j=flo(1),fhi(1),ratio(1)
-                  do i=flo(0),fhi(0)-ratio(dir),ratio(0)
-                     df = fine(i+ratio(dir),j,k,n)-fine(i,j,k,n)
-                     do M=1,ratio(dir)-1
-                        val = fine(i,j,k,n) &
-                            + df*dble(M)/dble(ratio(dir))
-                        do P=MAX(j,flo(1)),MIN(j+ratio(1)-1,fhi(1))
-                           do L=MAX(k,flo(2)),MIN(k+ratio(2)-1,fhi(2))
-                              fine(i+M,P,L,n) = val
-                           enddo
-                        enddo
-                     enddo                     
-                  enddo
-               enddo
-            enddo
-         enddo
-      else if (dir.eq.1) then
-         do n=1,nc
-            do k=flo(2),fhi(2),ratio(2)
-               do j=flo(1),fhi(1)-ratio(dir),ratio(1)
-                  do i=flo(0),fhi(0)
-                     df = fine(i,j+ratio(dir),k,n)-fine(i,j,k,n)
-                     do M=1,ratio(dir)-1
-                        val = fine(i,j,k,n) &
-                            + df*dble(M)/dble(ratio(dir))
-                        do P=MAX(i,flo(0)),MIN(i+ratio(0)-1,fhi(0))
-                           do L=MAX(k,flo(2)),MIN(k+ratio(2)-1,fhi(2))
-                              fine(P,j+M,L,n) = val
-                           enddo
-                        enddo
-                     enddo                     
-                  enddo
-               enddo
-            enddo
-         enddo
-      else
-         do n=1,nc
-            do k=flo(2),fhi(2)-ratio(dir),ratio(2)
-               do j=flo(1),fhi(1),ratio(1)
-                  do i=flo(0),fhi(0),ratio(0)
-                     df = fine(i,j,k+ratio(dir),n)-fine(i,j,k,n)
-                     do M=1,ratio(dir)-1
-                        val = fine(i,j,k,n) &
-                            + df*dble(M)/dble(ratio(dir))
-                        do P=MAX(i,flo(0)),MIN(i+ratio(0)-1,fhi(0))
-                           do L=MAX(j,flo(1)),MIN(j+ratio(1)-1,fhi(1))
-                              fine(P,L,k+M,n) = val
-                           enddo
-                        enddo
-                     enddo                     
-                  enddo
-               enddo
-            enddo
-         enddo
-      endif
-      end subroutine edge_interp
     
 end module navierstokes_3d_module

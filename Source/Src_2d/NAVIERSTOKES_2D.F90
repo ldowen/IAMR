@@ -20,7 +20,7 @@ module navierstokes_2d_module
   private 
 
   public gradp, fort_putdown, fort_maxval, &
-       summass, summass_eb, summass_cyl, cen2edg, edge_interp
+       summass, summass_eb, cen2edg
   
 contains
 
@@ -236,65 +236,6 @@ contains
 
      end subroutine summass_eb
      
-!c :: ----------------------------------------------------------
-!c :: SUMMASSCYL
-!c ::    MASS = sum{ vol(i,j)*rho(i,j) } over subregion cylinder
-!c ::
-!c :: INPUTS / OUTPUTS:
-!c ::  rho        => density field
-!c ::  DIMS(rho)  => index limits of rho aray
-!c ::  lo,hi      => index limits of grid interior
-!c ::  dx	 => cell size
-!c ::  mass      <=  total mass
-!c ::  r		 => radius at cell center
-!c ::  irlo,hi    => index limits of r array
-!c ::  rz_flag    => == 1 if R_Z coords
-!c ::  plo        => domain lo end
-!c ::  vws_dz     => height of subregion, from plo
-!c ::  vws_R      => radius of subregion
-!c ::  tmp        => temp column array
-!c :: ----------------------------------------------------------
-!c ::
-       subroutine summass_cyl(rho,DIMS(rho),DIMS(grid),dx,mass,&
-            r,irlo,irhi,rz_flag,plo,vws_dz,vws_R) &
-            bind(C,name="summass_cyl")
-
-       implicit none
-       integer irlo, irhi, rz_flag
-       integer DIMDEC(rho)
-       integer DIMDEC(grid)
-       REAL_T  mass, dx(2)
-       REAL_T  rho(DIMV(rho))
-       REAL_T  r(irlo:irhi)
-       REAL_T  plo(2),vws_dz, vws_R
-
-       integer i, j
-       REAL_T  dr, dz, vol, rr
-
-       dr = dx(1)
-       dz = dx(2)
-
-       mass = zero
-
-       do i = ARG_L1(grid), ARG_H1(grid)
-          if (rz_flag .eq. 1) then
-             rr = r(i)
-          else
-             rr = plo(1) + (i+half)*dx(1)
-          endif
-
-          if (rr.le.vws_R) then 
-             vol = dr*dz
-             if (rz_flag .eq. 1) vol = vol*two*Pi*rr
-             do j = ARG_L2(grid), ARG_H2(grid)
-                mass = mass + vol*rho(i,j)
-             end do
-          endif
-       end do
-      write(*,*) " in summass_cyl"
-
-     end subroutine summass_cyl
-
 !c ::
 !c :: ----------------------------------------------------------
 !c :: This routine fills an edge-centered fab from a cell-centered
@@ -374,52 +315,5 @@ contains
       end if
       write(*,*) " in cen2edg"
     end subroutine cen2edg
-
-!c-----------------------------------------------------------------------
-      subroutine edge_interp(flo, fhi, nc, ratio, dir,&
-           fine, fine_l0, fine_l1, fine_h0, fine_h1) &
-           bind(C,name="edge_interp")
-      implicit none
-      integer flo(0:2-1), fhi(0:2-1), nc, ratio(0:2-1), dir
-      integer fine_l0, fine_l1, fine_h0, fine_h1
-      DOUBLE PRECISION fine(fine_l0:fine_h0,fine_l1:fine_h1,nc)
-      integer i,j,n,P,M
-      DOUBLE PRECISION val, df
-
-!c     Do linear in dir, pc transverse to dir, leave alone the fine values
-!c     lining up with coarse edges--assume these have been set to hold the 
-!c     values you want to interpolate to the rest.
-      if (dir.eq.0) then
-         do n=1,nc
-            do j=flo(1),fhi(1),ratio(1)
-               do i=flo(0),fhi(0)-ratio(dir),ratio(0)
-                  df = fine(i+ratio(dir),j,n)-fine(i,j,n)
-                  do M=1,ratio(dir)-1
-                     val = fine(i,j,n) + df*dble(M)/dble(ratio(dir))
-                     do P=MAX(j,flo(1)),MIN(j+ratio(1)-1,fhi(1))
-                        fine(i+M,P,n) = val
-                     enddo
-                  enddo                     
-               enddo
-            enddo
-         enddo
-      else
-         do n=1,nc
-            do j=flo(1),fhi(1)-ratio(dir),ratio(1)
-               do i=flo(0),fhi(0)
-                  df = fine(i,j+ratio(dir),n)-fine(i,j,n)
-                  do M=1,ratio(dir)-1
-                     val = fine(i,j,n) + df*dble(M)/dble(ratio(dir))
-                     do P=MAX(i,flo(0)),MIN(i+ratio(0)-1,fhi(0))
-                        fine(P,j+M,n) = val
-                     enddo
-                  enddo
-               enddo
-            enddo
-         enddo
-      endif
-      write(*,*) " in edge_interp"
-
-    end subroutine edge_interp
 
   end module navierstokes_2d_module

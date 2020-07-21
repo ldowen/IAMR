@@ -73,14 +73,6 @@ extern "C" {
 		     const int* irlo, const int* irhi,
 		     const int* rz_flag);
 
-  
-    void summass_cyl (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
-		      ARLIM_P(grid_lo), ARLIM_P(grid_hi),
-		      const amrex::Real* delta, amrex::Real* mass,
-		      const amrex::Real* radius,
-		      const int* irlo, const int* irhi,
-		      const int* rz_flag, const amrex::Real* plo,
-		      const amrex::Real* vws_dz, const amrex::Real* vws_Rcyl);
 #else
     void summass (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
 		  ARLIM_P(grid_lo), ARLIM_P(grid_hi),
@@ -92,10 +84,6 @@ extern "C" {
 		     const amrex::Real* delta,
 		     amrex::Real* mass);
 		  
-    void summass_cyl (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
-		      ARLIM_P(grid_lo), ARLIM_P(grid_hi),
-		      const amrex::Real* delta, const amrex::Real* plo, const amrex::Real* vws_dz,
-		      const amrex::Real* vws_Rcyl, amrex::Real* mass);
 #endif
 
     void fort_maxval (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
@@ -106,10 +94,6 @@ extern "C" {
                       ARLIM_P(clo), ARLIM_P(chi), const amrex::Real* cfabdat,
                       ARLIM_P(elo), ARLIM_P(ehi), amrex::Real* efabdat,
                       const int* nc, const int* dir, const int* isharm);
-
-    void edge_interp(const int* flo, const int* fhi,
-                          const int* nc, const int* refRatio, const int* dir,
-                          amrex::Real*       fine, ARLIM_P(flo), ARLIM_P(fhi));
 
 #ifdef __cplusplus
 }
