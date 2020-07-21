@@ -14,22 +14,6 @@ extern "C" {
                      const int * domlo, const int * domhi,
                      const amrex::Real * dx_crse, const amrex::Real * xlo, 
                      const int * bc);
-
-#if (BL_SPACEDIM == 2)
-    void gradp (const amrex::Real* p, ARLIM_P(p_lo), ARLIM_P(p_hi),
-                     const amrex::Real* gp, ARLIM_P(gp_lo), ARLIM_P(gp_hi),
-                     const int* lo, const int* hi, const amrex::Real* dx ,
-                     const int* is_full);
-#else
-    void gradp (const amrex::Real* p, ARLIM_P(p_lo), ARLIM_P(p_hi),
-                     const amrex::Real* gp, ARLIM_P(gp_lo), ARLIM_P(gp_hi),
-                     const int* lo, const int* hi, const amrex::Real* dx);
-#endif
-    
-    void fort_putdown (amrex::Real* crse, ARLIM_P(crse_lo), ARLIM_P(crse_hi),
-                       const amrex::Real* fine, ARLIM_P(fine_lo), ARLIM_P(fine_hi),
-                       const int* lo, const int* hi,
-                       const int* ratio);
     
     void incrmult (amrex::Real* a, ARLIM_P(a_lo), ARLIM_P(a_hi),
                         const amrex::Real* b, ARLIM_P(b_lo), ARLIM_P(b_hi),
@@ -54,36 +38,6 @@ extern "C" {
 		      int *jetVars, int* numSplit,
 		      const amrex::Real* xlo, const amrex::Real* xhi);
 #endif
-#endif
-
-#if (BL_SPACEDIM == 2)
-    void summass (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
-		  ARLIM_P(grid_lo), ARLIM_P(grid_hi),
-		  const amrex::Real* delta, amrex::Real* mass,
-		  const amrex::Real* radius,
-		  const int* irlo, const int* irhi,
-		  const int* rz_flag);
-  
-    void summass_eb (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
-		     ARLIM_P(grid_lo), ARLIM_P(grid_hi),
-		     const amrex::Real* vf, ARLIM_P(vf_lo), ARLIM_P(vf_hi),
-		     const amrex::Real* delta,
-		     amrex::Real* mass,
-		     const amrex::Real* radius,
-		     const int* irlo, const int* irhi,
-		     const int* rz_flag);
-
-#else
-    void summass (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
-		  ARLIM_P(grid_lo), ARLIM_P(grid_hi),
-		  const amrex::Real* delta, amrex::Real* mass);
-
-    void summass_eb (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
-		     ARLIM_P(grid_lo), ARLIM_P(grid_hi),
-		     const amrex::Real* vf, ARLIM_P(vf_lo), ARLIM_P(vf_hi),
-		     const amrex::Real* delta,
-		     amrex::Real* mass);
-		  
 #endif
 
     void fort_maxval (const amrex::Real* dat, ARLIM_P(dat_lo), ARLIM_P(dat_hi),
