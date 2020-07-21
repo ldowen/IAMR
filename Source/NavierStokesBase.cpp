@@ -3190,8 +3190,6 @@ set_bcrec_new (Vector<BCRec>   bcrec,
 }
 
 //
-// FIXME filcc eventually needs attention, see comments below
-//
 // Interpolate A cell centered Sync correction from a
 // coarse level (c_lev) to a fine level (f_lev).
 //
@@ -3275,18 +3273,7 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
     //
     //////////
     // Should be fine for EB for now, since EB doesn't intersect Phys BC
-    // Although calling filcc_tile is not what we really want to be doing,
-    // there must be something higher level
-    // Maybe setPhysBoundaryValues? see example below
-    //
-    // MultiFab test(cdataBA,fdmap,num_comp,0,MFInfo(),Factory());
-    // // replace divu with test and compare with cdataMF?
-    // divu_old.FillBoundary();
-    // Real prev_time = amr_level.get_state_data(Divu_Type).prevTime();
-    // for (MFIter mfi(divu_new); mfi.isValid(); ++mfi)
-    // {
-    //   amr_level.setPhysBoundaryValues(divu_old[mfi],Divu_Type,prev_time,0,0,1);
-    // }
+    // Not sure about what happens if EB intersects Phys BC
     ///////
 
     // tiling may not be needed here, but what the hey
