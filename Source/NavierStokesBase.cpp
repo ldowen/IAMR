@@ -2,12 +2,12 @@
 #include <AMReX_ParmParse.H>
 #include <AMReX_TagBox.H>
 #include <AMReX_Utility.H>
+#include <AMReX_PhysBCFunct.H>
 
 #ifdef AMREX_USE_EB
 #include <AMReX_EBAmrUtil.H>
 #include <AMReX_EBInterpolater.H>
 #include <AMReX_EBFArrayBox.H>
-#include <AMReX_PhysBCFunct.H>
 #include <iamr_mol.H>
 #endif
 
