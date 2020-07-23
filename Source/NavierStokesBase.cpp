@@ -31,20 +31,21 @@ struct DummyFill           // Set 0.0 on EXT_DIR, nothing otherwise.
                      const BCRec* bcr, const int bcomp,
                      const int orig_comp) const
         {
-           const int* bc = bcr->data();
            const int* domlo = geom.Domain().loVect();
            const int* domhi = geom.Domain().hiVect();
-           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
-              if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
-                 for (int n = 0; n < numcomp; n++ ) {
+           for (int n = 0; n < numcomp; n++ ) {
+              const int* bc = bcr[n].data();
+              //Print() << " In DummyFill Comp: " << n << " -- \n";
+              //Print() << " lo.x " << bc[0] << " lo.y " << bc[1]
+              //        << " hi.x " << bc[2] << " hi.y " << bc[3] << "\n";
+              for (int idir = 0; idir < AMREX_SPACEDIM; idir++) {
+                 if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
+                    dest(iv, dcomp+n) = 0.0;
+                 } 
+                 if ((bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and (iv[idir] < domhi[idir])) {
                     dest(iv, dcomp+n) = 0.0;
                  }
-              }
-              if ((bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and (iv[idir] < domhi[idir])) {
-                 for (int n = 0; n < numcomp; n++ ) {
-                    dest(iv, dcomp+n) = 0.0;
-                 }
-              }
+              } 
            }
         }
 };
@@ -2212,6 +2213,14 @@ NavierStokesBase::level_sync (int crse_iteration)
     //
     // Interpolate Vsync to fine grid correction in Vcorr.
     //
+    //Print() << " Calling Vcorr SyncInterp from level: " << level << "\n";
+    //for (int spec = 0; spec < AMREX_SPACEDIM; spec++) {
+    //   Print() << " Scal: " << spec << " -- \n";
+    //   for (int i = 0; i < N; i++) {
+    //      Print() << "G(" << i << ") lo.x " << sync_bc[i][spec * (2*AMREX_SPACEDIM)  ] << " lo.y " << sync_bc[i][spec * (2*AMREX_SPACEDIM)+1]
+    //                            << " hi.x " << sync_bc[i][spec * (2*AMREX_SPACEDIM)+2] << " hi.y " << sync_bc[i][spec * (2*AMREX_SPACEDIM)+3] << "\n";
+    //   }    
+    //}
     SyncInterp(Vsync, level, V_corr, level+1, ratio,
                0, 0, AMREX_SPACEDIM, 0 , dt, sync_bc.dataPtr());
     //
@@ -2267,6 +2276,15 @@ NavierStokesBase::level_sync (int crse_iteration)
       MultiFab&     P_new    = flev.get_new_data(Press_Type);
       MultiFab&     P_old    = flev.get_old_data(Press_Type);
       MultiFab&     U_new    = flev.get_new_data(State_Type);
+
+      //Print() << " Calling Vcorr Fine SyncInterp from level: " << level << "\n";
+      //for (int spec = 0; spec < AMREX_SPACEDIM; spec++) {
+      //   Print() << " Scal: " << spec << " -- \n";
+      //   for (int i = 0; i < Nf; i++) {
+      //      Print() << "G(" << i << ") lo.x " << fine_sync_bc[i][spec * (2*AMREX_SPACEDIM)  ] << " lo.y " << fine_sync_bc[i][spec * (2*AMREX_SPACEDIM)+1]
+      //                            << " hi.x " << fine_sync_bc[i][spec * (2*AMREX_SPACEDIM)+2] << " hi.y " << fine_sync_bc[i][spec * (2*AMREX_SPACEDIM)+3] << "\n";
+      //   }    
+      //}
 
       SyncInterp(V_corr, level+1, U_new, lev, ratio,
                  0, 0, AMREX_SPACEDIM, 1 , dt, fine_sync_bc.dataPtr());
@@ -3172,7 +3190,7 @@ NavierStokesBase::sync_cleanup (MultiFab*& DeltaSsync)
 //
 static
 void
-set_bcrec_new (Vector<BCRec>   bcrec,
+set_bcrec_new (Vector<BCRec>  &bcrec,
                int             ncomp,
                int             src_comp,
                const Box&      box,
@@ -3302,7 +3320,11 @@ NavierStokesBase::SyncInterp (MultiFab&      CrseSync,
 
        Vector<BCRec> bx_bcrec(num_comp);
        set_bcrec_new(bx_bcrec,num_comp,src_comp,bx,cdomain,cgrids,bc_orig_qty);
-       gpu_bndry_func(bx,data,0,num_comp,geom,0.0, bx_bcrec,0,0);
+       //Print() << " Calling gpu_bndry_func in SyncInterp \n";   
+       //for (int n = 0; n < num_comp; n++) {
+       //   Print() << " Comp " << n << " bcrec " << bx_bcrec[0] << "\n";  
+       //}
+       gpu_bndry_func(bx,data,0,num_comp,geom,0.0,bx_bcrec,0,0);
     }
     cdataMF.EnforcePeriodicity(cgeom.periodicity());
 
