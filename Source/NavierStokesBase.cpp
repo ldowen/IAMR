@@ -22,7 +22,7 @@
 
 using namespace amrex;
 
-struct DummyFill
+struct DummyFill           // Set 0.0 on EXT_DIR, nothing otherwise.
 {
     AMREX_GPU_DEVICE
     void operator() (const IntVect& iv, Array4<Real> const& dest,
@@ -30,9 +30,23 @@ struct DummyFill
                      GeometryData const& geom, const Real time,
                      const BCRec* bcr, const int bcomp,
                      const int orig_comp) const
-        {   
-            // Dummy
-        }   
+        {
+           const int* bc = bcr->data();
+           const int* domlo = geom.Domain().loVect();
+           const int* domhi = geom.Domain().hiVect();
+           for (int dir = 0; dir < AMREX_SPACEDIM; dir++) {
+              if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
+                 for (int n = 0; n < numcomp; n++ ) {
+                    dest(iv, dcomp+n) = 0.0;
+                 }
+              }
+              if ((bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and (iv[idir] < domhi[idir])) {
+                 for (int n = 0; n < numcomp; n++ ) {
+                    dest(iv, dcomp+n) = 0.0;
+                 }
+              }
+           }
+        }
 };
 
 Godunov*    NavierStokesBase::godunov       = 0;
