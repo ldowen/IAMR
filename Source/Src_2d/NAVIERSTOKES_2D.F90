@@ -47,7 +47,6 @@ contains
              mxval = max(mxval, rho(i,j))
           end do
        end do
-      write(*,*) " in fort_maxval"
 
      end subroutine fort_maxval
 
@@ -128,7 +127,6 @@ contains
             end do
          end if
       end if
-      write(*,*) " in cen2edg"
     end subroutine cen2edg
 
   end module navierstokes_2d_module
