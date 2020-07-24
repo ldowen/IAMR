@@ -396,7 +396,12 @@ SyncRegister::FineAdd (MultiFab& Sync_resid_fine, const Geometry& crse_geom, Rea
                 Elixir cbndfab_e = cbndfab.elixir();
                 amrex::GpuArray<int,AMREX_SPACEDIM> rratio = {D_DECL(ratio[0],ratio[1],ratio[2])};
 
-                srcrsereg_k(bndbox,finebox,dir,rratio,finefab_a, cbndfab_a);
+                // TODO: this doesn't work on GPU. Will probably need to redo this completely ...
+                //amrex::launch(bndbox, [finebox,dir,rratio,finefab_a,cbndfab_a]
+                //AMREX_GPU_DEVICE (Box const& tbx)
+                //{  
+                   srcrsereg_k(bndbox,finebox,dir,rratio,finefab_a, cbndfab_a);
+                //}); 
 
                 for (int n = 0; n < AMREX_SPACEDIM; ++n)
                 {
