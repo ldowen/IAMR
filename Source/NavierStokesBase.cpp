@@ -30,21 +30,21 @@ struct DummyFill           // Set 0.0 on EXT_DIR, nothing otherwise.
                      GeometryData const& geom, const Real time,
                      const BCRec* bcr, const int bcomp,
                      const int orig_comp) const
-        {
-           const int* domlo = geom.Domain().loVect();
-           const int* domhi = geom.Domain().hiVect();
-           for (int n = 0; n < numcomp; n++ ) {
-              const int* bc = bcr[n].data();
-              for (int idir = 0; idir < AMREX_SPACEDIM; idir++) {
-                 if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
-                    dest(iv, dcomp+n) = 0.0;
-                 } 
-                 if ((bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and (iv[idir] < domhi[idir])) {
-                    dest(iv, dcomp+n) = 0.0;
-                 }
-              } 
-           }
-        }
+    {
+       const int* domlo = geom.Domain().loVect();
+       const int* domhi = geom.Domain().hiVect();
+       for (int n = 0; n < numcomp; n++ ) {
+          const int* bc = bcr[n].data();
+          for (int idir = 0; idir < AMREX_SPACEDIM; idir++) {
+             if ((bc[idir] == amrex::BCType::ext_dir) and (iv[idir] < domlo[idir])) {
+                dest(iv, dcomp+n) = 0.0;
+             }
+             if ((bc[idir + AMREX_SPACEDIM] == amrex::BCType::ext_dir) and (iv[idir] < domhi[idir])) {
+                dest(iv, dcomp+n) = 0.0;
+             }
+          }
+       }
+    }
 };
 
 Godunov*    NavierStokesBase::godunov       = 0;
@@ -208,11 +208,11 @@ NavierStokesBase::NavierStokesBase ()
 }
 
 NavierStokesBase::NavierStokesBase (Amr&            papa,
-				    int             lev,
-				    const Geometry& level_geom,
-				    const BoxArray& bl,
+                                    int             lev,
+                                    const Geometry& level_geom,
+                                    const BoxArray& bl,
                                     const DistributionMapping& dm,
-				    Real            time)
+                                    Real            time)
     :
     AmrLevel(papa,lev,level_geom,bl,dm,time)
 {
