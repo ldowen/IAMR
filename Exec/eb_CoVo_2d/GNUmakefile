@@ -13,12 +13,12 @@ PRECISION   = DOUBLE
 DIM         = 2
 COMP        = gnu
 
-DEBUG       = TRUE
+DEBUG       = FALSE
 USE_MPI     = TRUE
 USE_OMP     = FALSE
 PROFILE     = FALSE
 
-USE_EB = TRUE
+#USE_EB = TRUE
 
 USE_VELOCITY = FALSE
 
