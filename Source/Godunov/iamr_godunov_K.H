@@ -15,7 +15,7 @@
 
 namespace {
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetTransTermXBCs (const int i, const int j, const int k, const int n,
                        const amrex::Array4<const amrex::Real> &s,
                        amrex::Real &lo,
@@ -68,7 +68,7 @@ void SetTransTermXBCs (const int i, const int j, const int k, const int n,
         return;
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetTransTermYBCs ( const int i, const int j, const int k, const int n,
                         const amrex::Array4<const amrex::Real> &s,
                         amrex::Real &lo,
@@ -122,7 +122,7 @@ void SetTransTermYBCs ( const int i, const int j, const int k, const int n,
 }
 
 #if (AMREX_SPACEDIM==3)
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetTransTermZBCs(const int i, const int j, const int k, const int n,
                       const amrex::Array4<const amrex::Real> &s,
                       amrex::Real &lo,
@@ -176,7 +176,7 @@ void SetTransTermZBCs(const int i, const int j, const int k, const int n,
 }
 #endif
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetXEdgeBCs( const int i, const int j, const int k, const int n,
                   const amrex::Array4<const amrex::Real> &s,
                   amrex::Real &lo, amrex::Real &hi,
@@ -228,7 +228,7 @@ void SetXEdgeBCs( const int i, const int j, const int k, const int n,
 }
 
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetYEdgeBCs ( const int i, const int j, const int k, const int n,
                    const amrex::Array4<const amrex::Real> &s,
                    amrex::Real &lo, amrex::Real &hi,
@@ -284,7 +284,7 @@ void SetYEdgeBCs ( const int i, const int j, const int k, const int n,
 //   =============================== 3D ONLY ===============================   //
 //                                                                             //
 #if (AMREX_SPACEDIM==3)
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetZEdgeBCs ( const int i, const int j, const int k, const int n,
                    const amrex::Array4<const amrex::Real> &s,
                    amrex::Real &lo, amrex::Real &hi,
@@ -336,7 +336,7 @@ void SetZEdgeBCs ( const int i, const int j, const int k, const int n,
 }
 
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void AddCornerCoupleTermYX ( amrex::Real& lo1, amrex::Real& hi1,
                              int i, int j, int k, int n, amrex::Real dt, amrex::Real dx,
                              bool iconserv, amrex::Real lo, amrex::Real hi,
@@ -366,7 +366,7 @@ void AddCornerCoupleTermYX ( amrex::Real& lo1, amrex::Real& hi1,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void AddCornerCoupleTermZX ( amrex::Real& lo1, amrex::Real& hi1,
                              int i, int j, int k, int n, amrex::Real dt, amrex::Real dx,
                              bool iconserv, amrex::Real lo, amrex::Real hi,
@@ -396,7 +396,7 @@ void AddCornerCoupleTermZX ( amrex::Real& lo1, amrex::Real& hi1,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void AddCornerCoupleTermXY ( amrex::Real& lo1, amrex::Real& hi1,
                              int i, int j, int k, int n, amrex::Real dt, amrex::Real dy,
                              bool iconserv, amrex::Real lo, amrex::Real hi,
@@ -426,7 +426,7 @@ void AddCornerCoupleTermXY ( amrex::Real& lo1, amrex::Real& hi1,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void AddCornerCoupleTermZY ( amrex::Real& lo1, amrex::Real& hi1,
                              int i, int j, int k, int n, amrex::Real dt, amrex::Real dy,
                              bool iconserv, amrex::Real lo, amrex::Real hi,
@@ -456,7 +456,7 @@ void AddCornerCoupleTermZY ( amrex::Real& lo1, amrex::Real& hi1,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void AddCornerCoupleTermXZ ( amrex::Real& lo1, amrex::Real& hi1,
                              int i, int j, int k, int n, amrex::Real dt, amrex::Real dz,
                              bool iconserv, amrex::Real lo, amrex::Real hi,
@@ -486,7 +486,7 @@ void AddCornerCoupleTermXZ ( amrex::Real& lo1, amrex::Real& hi1,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void AddCornerCoupleTermYZ ( amrex::Real& lo1, amrex::Real& hi1,
                              int i, int j, int k, int n, amrex::Real dt, amrex::Real dz,
                              bool iconserv, amrex::Real lo, amrex::Real hi,

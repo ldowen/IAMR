@@ -1323,25 +1323,40 @@ NavierStokesBase::create_umac_grown (int nGrow)
 
 		if (fbox.type(0) == IndexType::NODE)
 	        {
-		  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-		  {
+        ParallelFor(fbox, nComp, [=] 
+        AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+        {
 		    face_interp_x(i,j,k,n,fine_arr,c_ratio);
-		  });
+        });
+		  //AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+		  //{
+		  //  face_interp_x(i,j,k,n,fine_arr,c_ratio);
+		  //});
 		}
 		else if (fbox.type(1) == IndexType::NODE)
 		{
-		  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-		  {
+        ParallelFor(fbox, nComp, [=] 
+        AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+        {
 		    face_interp_y(i,j,k,n,fine_arr,c_ratio);
-		  });
+        });
+		  //AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+		  //{
+		  //  face_interp_y(i,j,k,n,fine_arr,c_ratio);
+		  //});
 		}
 #if (AMREX_SPACEDIM == 3)
 		else
 		{
-		  AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
-                  {
+        ParallelFor(fbox, nComp, [=] 
+        AMREX_GPU_DEVICE (int i, int j, int k, int n) noexcept 
+        {
 		    face_interp_z(i,j,k,n,fine_arr,c_ratio);
-		  });
+        });
+		  //AMREX_HOST_DEVICE_PARALLEL_FOR_4D(fbox,nComp,i,j,k,n,
+        //          {
+		  //  face_interp_z(i,j,k,n,fine_arr,c_ratio);
+		  //});
 		}
 #endif
             }
@@ -4213,7 +4228,7 @@ NavierStokesBase::volWgtSum (const std::string& name,
         amrex::Abort("EB volWgtSum currently only works over entire cartesian domain.");
     }
     Real sm = amrex::ReduceSum(*mf, *volfrac, 0, [vol]
-    AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& mf_arr, Array4<Real const> const& vf_arr) -> Real
+    AMREX_GPU_DEVICE (Box const& bx, Array4<Real const> const& mf_arr, Array4<Real const> const& vf_arr) -> Real
     {
         Real sum = 0.0;
         AMREX_LOOP_3D(bx, i, j, k,
@@ -4227,7 +4242,7 @@ NavierStokesBase::volWgtSum (const std::string& name,
     const Real sub_dz = volWgtSum_sub_dz;
     const Real sub_Rcyl = volWgtSum_sub_Rcyl;
     Real sm = amrex::ReduceSum(*mf, 0, [vol, sub_dz, sub_Rcyl, dx, dom_lo]
-    AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& mf_arr) -> Real
+    AMREX_GPU_DEVICE (Box const& bx, Array4<Real const> const& mf_arr) -> Real
     {
         Real sum = 0.0;
         if ( sub_dz > 0 && sub_Rcyl > 0 ) {

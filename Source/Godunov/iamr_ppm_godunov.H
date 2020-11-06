@@ -7,7 +7,7 @@
 
 
 namespace {
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 amrex::Real vanLeer(const amrex::Real a, const amrex::Real b, const amrex::Real c)
 {
     constexpr amrex::Real small_qty_sq = (1.e-10)*(1.e-10);
@@ -38,7 +38,7 @@ void PredictVelOnFaces (amrex::Box const& bx, int ncomp,
                         amrex::BCRec const* d_bcrec);
 
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetXBCs ( const int i, const int j, const int k, const int n,
                amrex::Real &sm, amrex::Real &sp,
                amrex::Real &sedge1, amrex::Real &sedge2,
@@ -117,7 +117,7 @@ void SetXBCs ( const int i, const int j, const int k, const int n,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetYBCs ( const int i, const int j, const int k, const int n,
                amrex::Real &sm, amrex::Real &sp,
                amrex::Real &sedge1, amrex::Real &sedge2,
@@ -197,7 +197,7 @@ void SetYBCs ( const int i, const int j, const int k, const int n,
 }
 
 #if (AMREX_SPACEDIM==3)
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void SetZBCs ( const int i, const int j, const int k, const int n,
                amrex::Real &sm, amrex::Real &sp,
                amrex::Real &sedge1, amrex::Real &sedge2,
@@ -285,7 +285,7 @@ void SetZBCs ( const int i, const int j, const int k, const int n,
 // Right now only ppm type 1 is supported on GPU
 // This version is called before the MAC projection, when we use the cell-centered velocity
 //      for upwinding
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void PredictVelOnXFace ( const int i, const int j, const int k, const int n,
                          const amrex::Real dtdx, const amrex::Real v_ad,
                          const amrex::Array4<const amrex::Real> &S,
@@ -353,7 +353,7 @@ void PredictVelOnXFace ( const int i, const int j, const int k, const int n,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void PredictVelOnYFace ( const int i, const int j, const int k, const int n,
                          const amrex::Real dtdy, const amrex::Real v_ad,
                          const amrex::Array4<const amrex::Real> &S,
@@ -422,7 +422,7 @@ void PredictVelOnYFace ( const int i, const int j, const int k, const int n,
 }
 
 #if (AMREX_SPACEDIM==3)
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void PredictVelOnZFace ( const int i, const int j, const int k, const int n,
                          const amrex::Real dtdz, const amrex::Real v_ad,
                          const amrex::Array4<const amrex::Real> &S,
@@ -495,7 +495,7 @@ void PredictVelOnZFace ( const int i, const int j, const int k, const int n,
 // Right now only ppm type 1 is supported on GPU
 // This version is called after the MAC projection, when we use the MAC-projected velocity
 //      for upwinding
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void PredictStateOnXFace ( const int i, const int j, const int k, const int n,
                            const amrex::Real dt, const amrex::Real dx,
                            amrex::Real& Im, amrex::Real& Ip,
@@ -562,7 +562,7 @@ void PredictStateOnXFace ( const int i, const int j, const int k, const int n,
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void PredictStateOnYFace ( const int i, const int j, const int k, const int n,
                            const amrex::Real dt, const amrex::Real dx,
                            amrex::Real& Im, amrex::Real& Ip,
@@ -631,7 +631,7 @@ void PredictStateOnYFace ( const int i, const int j, const int k, const int n,
 
 
 #if (AMREX_SPACEDIM==3)
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE
+AMREX_GPU_DEVICE AMREX_FORCE_INLINE
 void PredictStateOnZFace ( const int i, const int j, const int k, const int n,
                            const amrex::Real dt, const amrex::Real dx,
                            amrex::Real& Im, amrex::Real& Ip,

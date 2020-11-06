@@ -6,8 +6,8 @@
 #include <cmath>
 
 
-AMREX_GPU_HOST_DEVICE
-inline
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 void
 set_body_state_k(int i, int j, int k,
                  int ncomp,
@@ -26,8 +26,8 @@ set_body_state_k(int i, int j, int k,
 
 }
 
-AMREX_GPU_HOST_DEVICE
-inline
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
 void
 calc_gradp(int i, int j, int k,
            amrex::Real                                  const space_scale,
@@ -55,7 +55,9 @@ calc_gradp(int i, int j, int k,
 // lining up with coarse edges--assume these have been set to hold the
 // values you want to interpolate to the rest.
 //
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
 face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
 	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
 {
@@ -70,7 +72,9 @@ face_interp_x (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fin
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
 face_interp_y (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
 	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
 {
@@ -85,7 +89,9 @@ face_interp_y (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fin
     }
 }
 
-AMREX_GPU_HOST_DEVICE AMREX_FORCE_INLINE void
+AMREX_GPU_DEVICE
+AMREX_FORCE_INLINE
+void
 face_interp_z (int i, int j, int k, int n, amrex::Array4<amrex::Real> const& fine,
 	       amrex::GpuArray<int,AMREX_SPACEDIM>   const& ratio) noexcept
 {
