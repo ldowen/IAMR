@@ -4242,7 +4242,7 @@ NavierStokesBase::volWgtSum (const std::string& name,
     const Real sub_dz = volWgtSum_sub_dz;
     const Real sub_Rcyl = volWgtSum_sub_Rcyl;
     Real sm = amrex::ReduceSum(*mf, 0, [vol, sub_dz, sub_Rcyl, dx, dom_lo]
-    AMREX_GPU_DEVICE (Box const& bx, Array4<Real const> const& mf_arr) -> Real
+    AMREX_GPU_HOST_DEVICE (Box const& bx, Array4<Real const> const& mf_arr) -> Real
     {
         Real sum = 0.0;
         if ( sub_dz > 0 && sub_Rcyl > 0 ) {
