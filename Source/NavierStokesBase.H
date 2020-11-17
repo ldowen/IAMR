@@ -246,7 +246,8 @@ public:
                            const amrex::Real       time,
                            const amrex::FArrayBox& Vel,
                            const amrex::FArrayBox& Scal,
-                           int                     scalScomp);
+                           int                     scalScomp,
+                           const amrex::MFIter&    mfi);
     //
     amrex::FluxRegister& getAdvFluxReg () {
         BL_ASSERT(advflux_reg);

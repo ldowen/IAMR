@@ -172,6 +172,7 @@ namespace
     // Name of subdirectory in chk???? holding checkpointed particles.
     //
     const std::string the_ns_particle_file_name("Particles");
+    bool do_nspc = false;
     //
     // There's really only one of these.
     //
@@ -739,7 +740,7 @@ NavierStokesBase::advance_setup (Real time,
 #endif
 
 #ifdef AMREX_PARTICLES
-    if (ncycle > umac_n_grow)
+    if (ncycle > umac_n_grow && do_nspc)
       umac_n_grow = ncycle;
 #endif
 
@@ -1011,7 +1012,7 @@ NavierStokesBase::checkPoint (const std::string& dir,
     AmrLevel::checkPoint(dir, os, how, dump_old);
 
 #ifdef AMREX_PARTICLES
-    if (level == 0)
+    if (level == 0 && do_nspc)
     {
         if (NSPC != 0)
             NSPC->Checkpoint(dir,the_ns_particle_file_name);
@@ -1502,7 +1503,7 @@ NavierStokesBase::estTimeStep ()
            amrex::Print() << "---" << '\n'
                           << "H - est Time Step:" << '\n'
                           << "Calling getForce..." << '\n';
-       getForce(tforces_fab,bx,0,AMREX_SPACEDIM,cur_time,S_new[mfi],S_new[mfi],Density);
+       getForce(tforces_fab,bx,0,AMREX_SPACEDIM,cur_time,S_new[mfi],S_new[mfi],Density,mfi);
 
        const auto& rho   = rho_ctime.array(mfi);  
        const auto& gradp = Gp.array(mfi); 
@@ -3121,7 +3122,7 @@ NavierStokesBase::scalar_advection_update (Real dt,
 
                if (getForceVerbose) amrex::Print() << "Calling getForce..." << '\n';
                tforces.resize(bx,1);
-               getForce(tforces,bx,sigma,1,halftime,Vel_fab,Scal,0);
+               getForce(tforces,bx,sigma,1,halftime,Vel_fab,Scal,0,Rho_mfi);
 
 	       const auto& Snew = S_new[Rho_mfi].array(sigma);
 	       const auto& Sold = S_old[Rho_mfi].const_array(sigma);
@@ -3757,7 +3758,7 @@ NavierStokesBase::velocity_advection (Real dt)
                                    << "Calling getForce..." << '\n';
                 }
                 getForce(forcing_term[U_mfi],gbx,Xvel,AMREX_SPACEDIM,
-			 prev_time,Umf[U_mfi],Smf[U_mfi],0);
+			 prev_time,Umf[U_mfi],Smf[U_mfi],0,U_mfi);
 
                 //
                 // Compute the total forcing.
@@ -3997,7 +3998,7 @@ NavierStokesBase::velocity_advection_update (Real dt)
         const Real half_time = 0.5*(state[State_Type].prevTime()+state[State_Type].curTime());
         tforces.resize(bx,AMREX_SPACEDIM);
         Elixir tf_i = tforces.elixir();
-        getForce(tforces,bx,Xvel,AMREX_SPACEDIM,half_time,VelFAB,ScalFAB,0);
+        getForce(tforces,bx,Xvel,AMREX_SPACEDIM,half_time,VelFAB,ScalFAB,0,mfi);
 
         //
         // Do following only at initial iteration--per JBB.
@@ -4115,7 +4116,7 @@ NavierStokesBase::initial_velocity_diffusion_update (Real dt)
                                << "G - initial velocity diffusion update:" << '\n'
                                << "Calling getForce..." << '\n';
             }
-            getForce(tforces_fab,bx,Xvel,AMREX_SPACEDIM,prev_time,U_old[mfi],U_old[mfi],Density);
+            getForce(tforces_fab,bx,Xvel,AMREX_SPACEDIM,prev_time,U_old[mfi],U_old[mfi],Density,mfi);
         }
 
         //
@@ -4580,6 +4581,11 @@ NavierStokesBase::read_particle_params ()
 {
     ParmParse ppp("particles");
     //
+    // First, check if NSPC is used or if different
+    // particles are being used (IE sprays)
+    ppp.query("do_nspc_particles", do_nspc);
+    if (!do_nspc) return;
+    //
     // The directory in which to store timestamp files.
     //
     ppp.query("timestamp_dir", timestamp_dir);
@@ -4645,7 +4651,7 @@ NavierStokesBase::initParticleData ()
 void
 NavierStokesBase::post_restart_particle ()
 {
-    if (level == 0)
+    if (level == 0 && do_nspc)
     {
         BL_ASSERT(NSPC == 0);
 
@@ -4770,7 +4776,7 @@ NavierStokesBase::ParticleDerive (const std::string& name,
 				  Real               time,
 				  int                ngrow)
 {
-    if (name == "particle_count" || name == "total_particle_count") {
+    if ((name == "particle_count" || name == "total_particle_count") && do_nspc) {
 	int ncomp = 1;
 	const DeriveRec* rec = derive_lst.get(name);
 	if (rec)
