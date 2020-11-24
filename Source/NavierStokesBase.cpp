@@ -4632,6 +4632,7 @@ NavierStokesBase::read_particle_params ()
 void
 NavierStokesBase::initParticleData ()
 {
+    if (!do_nspc) return;
     if (level == 0)
     {
         if (NSPC == 0)
