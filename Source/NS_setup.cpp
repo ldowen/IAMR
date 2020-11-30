@@ -8,6 +8,7 @@
 #include <DERIVE_F.H>
 #include <NS_error_F.H>
 #include <AMReX_FArrayBox.H>
+#include <AMReX_ParmParse.H>
 
 using namespace amrex;
 
@@ -138,6 +139,15 @@ set_dsdt_bc(BCRec& bc, const BCRec& phys_bc)
 
 typedef StateDescriptor::BndryFunc BndryFunc;
 
+//
+// Get EB-aware interpolater when needed
+//
+#ifdef AMREX_USE_EB  
+  static auto& cc_interp = eb_cell_cons_interp;
+#else
+  static auto& cc_interp = cell_cons_interp;
+#endif
+
 void
 NavierStokes::variableSetUp ()
 {
@@ -179,18 +189,11 @@ NavierStokes::variableSetUp ()
     //
     // **************  DEFINE VELOCITY VARIABLES  ********************
     //
-    // FIXME? - cribbed from CNS
-#ifdef AMREX_USE_EB
     bool state_data_extrap = false;
     bool store_in_checkpoint = true;
     desc_lst.addDescriptor(State_Type,IndexType::TheCellType(),
-    			   StateDescriptor::Point,NUM_GROW,NUM_STATE,
-    			   &eb_cell_cons_interp,state_data_extrap,store_in_checkpoint);
-#else
-    desc_lst.addDescriptor(State_Type,IndexType::TheCellType(),
-                           StateDescriptor::Point,1,NUM_STATE,
-                           &cell_cons_interp);
-#endif
+    			   StateDescriptor::Point,1,NUM_STATE,
+    			   &cc_interp,state_data_extrap,store_in_checkpoint);
     
     set_x_vel_bc(bc,phys_bc);
     desc_lst.setComponent(State_Type,Xvel,"x_velocity",bc,BndryFunc(FORT_XVELFILL));
@@ -300,7 +303,7 @@ NavierStokes::variableSetUp ()
 	int nGrowDivu = 1;
 	desc_lst.addDescriptor(Divu_Type,IndexType::TheCellType(),
                                StateDescriptor::Point,nGrowDivu,1,
-			       &cell_cons_interp);
+			       &cc_interp);
 	set_divu_bc(bc,phys_bc);
 	desc_lst.setComponent(Divu_Type,Divu,"divu",bc,BndryFunc(FORT_DIVUFILL));
 	
@@ -309,7 +312,7 @@ NavierStokes::variableSetUp ()
 	int nGrowDsdt = 0;
 	desc_lst.addDescriptor(Dsdt_Type,IndexType::TheCellType(),
                                StateDescriptor::Point,nGrowDsdt,1,
-			       &cell_cons_interp);
+			       &cc_interp);
 	set_dsdt_bc(bc,phys_bc);
 	desc_lst.setComponent(Dsdt_Type,Dsdt,"dsdt",bc,BndryFunc(FORT_DSDTFILL));
     }
@@ -492,5 +495,73 @@ NavierStokes::variableSetUp ()
     //
     // **************  DEFINE ERROR ESTIMATION QUANTITIES  *************
     //
+
+    //
+    // Dynamically generated error tagging functions
+    //
+    std::string amr_prefix = "amr";
+    ParmParse ppamr(amr_prefix);
+    Vector<std::string> refinement_indicators;
+    ppamr.queryarr("refinement_indicators",refinement_indicators,0,ppamr.countval("refinement_indicators"));
+    for (int i=0; i<refinement_indicators.size(); ++i)
+    {
+        std::string ref_prefix = amr_prefix + "." + refinement_indicators[i];
+
+        ParmParse ppr(ref_prefix);
+        RealBox realbox;
+        if (ppr.countval("in_box_lo")) {
+            std::vector<Real> box_lo(BL_SPACEDIM), box_hi(BL_SPACEDIM);
+            ppr.getarr("in_box_lo",box_lo,0,box_lo.size());
+            ppr.getarr("in_box_hi",box_hi,0,box_hi.size());
+            realbox = RealBox(&(box_lo[0]),&(box_hi[0]));
+        }
+
+        AMRErrorTagInfo info;
+
+        if (realbox.ok()) {
+            info.SetRealBox(realbox);
+        }
+        if (ppr.countval("start_time") > 0) {
+            Real min_time; ppr.get("start_time",min_time);
+            info.SetMinTime(min_time);
+        }
+        if (ppr.countval("end_time") > 0) {
+            Real max_time; ppr.get("end_time",max_time);
+            info.SetMaxTime(max_time);
+        }
+        if (ppr.countval("max_level") > 0) {
+            int max_level; ppr.get("max_level",max_level);
+            info.SetMaxLevel(max_level);
+        }
+
+        if (ppr.countval("value_greater")) {
+            Real value; ppr.get("value_greater",value);
+            std::string field; ppr.get("field_name",field);
+            errtags.push_back(AMRErrorTag(value,AMRErrorTag::GREATER,field,info));
+        }
+        else if (ppr.countval("value_less")) {
+            Real value; ppr.get("value_less",value);
+            std::string field; ppr.get("field_name",field);
+            errtags.push_back(AMRErrorTag(value,AMRErrorTag::LESS,field,info));
+        }
+        else if (ppr.countval("vorticity_greater")) {
+            Real value; ppr.get("vorticity_greater",value);
+            const std::string field="mag_vort";
+            errtags.push_back(AMRErrorTag(value,AMRErrorTag::VORT,field,info));
+        }
+        else if (ppr.countval("adjacent_difference_greater")) {
+            Real value; ppr.get("adjacent_difference_greater",value);
+            std::string field; ppr.get("field_name",field);
+            errtags.push_back(AMRErrorTag(value,AMRErrorTag::GRAD,field,info));
+        }
+        else if (realbox.ok())
+        {
+            errtags.push_back(AMRErrorTag(info));
+        }
+        else {
+            Abort(std::string("Unrecognized refinement indicator for " + refinement_indicators[i]).c_str());
+        }
+    }
+
     error_setup();
 }
