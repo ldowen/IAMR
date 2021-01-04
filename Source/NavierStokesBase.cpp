@@ -118,9 +118,15 @@ std::string NavierStokesBase::LES_model                 = "Smagorinsky";
 Real        NavierStokesBase::smago_Cs_cst              = 0.18;
 Real        NavierStokesBase::sigma_Cs_cst              = 1.5;
 
+amrex::Vector<amrex::Real> NavierStokesBase::time_avg;
+amrex::Vector<amrex::Real> NavierStokesBase::time_avg_fluct;
+amrex::Vector<amrex::Real> NavierStokesBase::dt_avg;
+int  NavierStokesBase::avg_interval                    = 0;
+int  NavierStokesBase::compute_fluctuations            = 0;
 int  NavierStokesBase::additional_state_types_initialized = 0;
 int  NavierStokesBase::Divu_Type                          = -1;
 int  NavierStokesBase::Dsdt_Type                          = -1;
+int  NavierStokesBase::Average_Type                       = -1;
 int  NavierStokesBase::num_state_type                     = 2;
 int  NavierStokesBase::have_divu                          = 0;
 int  NavierStokesBase::have_dsdt                          = 0;
@@ -152,6 +158,13 @@ bool         NavierStokesBase::no_eb_in_domain     = true;
 bool         NavierStokesBase::body_state_set      = false;
 std::vector<Real> NavierStokesBase::body_state;
 #endif
+
+//
+// For restart, is Average in checkpoint file 
+//
+bool NavierStokesBase::average_in_checkpoint = true;
+
+
 
 namespace
 {
@@ -474,6 +487,9 @@ NavierStokesBase::Initialize ()
     pp.query("LES_model",                LES_model  );
     pp.query("smago_Cs_cst",             smago_Cs_cst  );
     pp.query("sigma_Cs_cst",             sigma_Cs_cst  );
+
+    pp.query("avg_interval",             avg_interval  );
+    pp.query("compute_fluctuations",     compute_fluctuations  );
 
 #ifdef AMREX_USE_EB
     pp.query("refine_cutcells", refine_cutcells);
@@ -963,7 +979,33 @@ NavierStokesBase::checkPoint (const std::string& dir,
 			      VisMF::How         how,
 			      bool               dump_old)
 {
-    AmrLevel::checkPoint(dir, os, how, dump_old);
+  AmrLevel::checkPoint(dir, os, how, dump_old);
+
+  if (avg_interval > 0){
+    VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
+
+    if (ParallelDescriptor::IOProcessor()) {
+
+      std::ofstream TImeAverageFile;
+      TImeAverageFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+      std::string TAFileName(dir + "/TimeAverage");
+      TImeAverageFile.open(TAFileName.c_str(), std::ofstream::out   |
+                    std::ofstream::trunc |
+                    std::ofstream::binary);
+
+      if( !TImeAverageFile.good()) {
+           amrex::FileOpenFailed(TAFileName);
+      }
+
+      TImeAverageFile.precision(17);
+
+      // write out title line
+      TImeAverageFile << "Writing time_average to checkpoint\n";
+    
+      TImeAverageFile << NavierStokesBase::time_avg[level] << "\n";
+      TImeAverageFile << NavierStokesBase::time_avg_fluct[level] << "\n";
+    }
+  }
 
 #ifdef AMREX_PARTICLES
     if (level == 0 && do_nspc)
@@ -1231,14 +1273,14 @@ NavierStokesBase::create_umac_grown (int nGrow)
                 ParallelFor(box,[crs_arr,fine_arr,idim,c_ratio]
                 AMREX_GPU_DEVICE (int i, int j, int k) noexcept
                 {
-                   int idx[3] = {i*c_ratio[0],j*c_ratio[1],k*c_ratio[2]};
+		   int idx[3] = {D_DECL(i*c_ratio[0],j*c_ratio[1],k*c_ratio[2])};
 #if ( AMREX_SPACEDIM == 2 )
                    // dim1 are the complement of idim
                    int dim1 = ( idim == 0 ) ? 1 : 0;
                    for (int n1 = 0; n1 < c_ratio[dim1]; n1++) {
-                      int id[3] = {idx[0],idx[1],idx[2]};
+                      int id[3] = {idx[0],idx[1]};
                       id[dim1] += n1;
-                      fine_arr(id[0],id[1],id[2]) = crs_arr(i,j,k);
+                      fine_arr(id[0],id[1],0) = crs_arr(i,j,k);
                    }
 #elif ( AMREX_SPACEDIM == 3 )
                    // dim1 and dim2 are the complements of idim
@@ -1821,6 +1863,11 @@ NavierStokesBase::init (AmrLevel &old)
              p_n(i,j,k) = p_arr(i,j,k);
           });
        }
+    }
+
+    if (avg_interval > 0){
+      MultiFab& Save_new = get_new_data(Average_Type);
+      FillPatch(old,Save_new,0,cur_time,Average_Type,0,BL_SPACEDIM*2);
     }
 
     //
@@ -2546,16 +2593,85 @@ NavierStokesBase::post_regrid (int lbase,
         NSPC->Redistribute(lbase);
     }
 #endif
+
+
 }
 
+//
+// Old checkpoint files may not have Gradp_Type.
+// 
+//
+void
+NavierStokesBase::set_state_in_checkpoint (Vector<int>& state_in_checkpoint)
+{ 
+  //
+  // Tell AmrLevel which types are in the checkpoint, so it knows what to copy.
+  // state_in_checkpoint is initialized to all true.
+  //
+  state_in_checkpoint[Average_Type] = 0;
+
+  average_in_checkpoint = false;
+}
 //
 // Build any additional data structures after restart.
 //
 void
 NavierStokesBase::post_restart ()
 {
-    make_rho_prev_time();
-    make_rho_curr_time();
+   make_rho_prev_time();
+   make_rho_curr_time();
+
+  if (avg_interval > 0){
+
+    const int   finest_level = parent->finestLevel();
+    NavierStokesBase::time_avg.resize(finest_level+1);
+    NavierStokesBase::time_avg_fluct.resize(finest_level+1);
+    NavierStokesBase::dt_avg.resize(finest_level+1);
+
+  // We assume that if Average_Type is not present, we have just activated the start of averaging
+    if ( !average_in_checkpoint )
+    {
+      Print()<<"WARNING! Average not found in checkpoint file. Creating data"
+             <<std::endl;
+
+      Real cur_time = state[State_Type].curTime();
+      Real prev_time = state[State_Type].prevTime();
+      Real dt = cur_time - prev_time;
+      state[Average_Type].define(geom.Domain(), grids, dmap, desc_lst[Average_Type],
+                               cur_time, dt, Factory());
+
+      MultiFab& Savg   = get_new_data(Average_Type);
+      Savg.setVal(0.);
+      state[Average_Type].allocOldData();
+      MultiFab& Savg_old   = get_old_data(Average_Type);
+      Savg_old.setVal(0.);
+
+      NavierStokesBase::dt_avg[level]   = 0;
+      NavierStokesBase::time_avg[level] = 0;
+      NavierStokesBase::time_avg_fluct[level] = 0;
+
+
+    }else{
+  // If Average_Type data were found, this means that we need to recover the value of time_average
+      std::string line;
+      std::string file=parent->theRestartFile();
+
+      std::string File(file + "/TimeAverage");
+      Vector<char> fileCharPtr;
+      ParallelDescriptor::ReadAndBcastFile(File, fileCharPtr);
+      std::string fileCharPtrString(fileCharPtr.dataPtr());
+      std::istringstream isp(fileCharPtrString, std::istringstream::in);
+
+      // read in title line
+      std::getline(isp, line);
+
+      isp >> NavierStokesBase::time_avg[level];
+      isp >> NavierStokesBase::time_avg_fluct[level];
+      NavierStokesBase::dt_avg[level]   = 0;
+ 
+    }
+  }
+
 
 #ifdef AMREX_PARTICLES
     post_restart_particle ();
@@ -2625,6 +2741,7 @@ NavierStokesBase::post_timestep (int crse_iteration)
 #endif
 #endif
 
+
     if (level > 0) incrPAvg();
 
     old_intersect_new          = grids;
@@ -2663,6 +2780,13 @@ NavierStokesBase::post_timestep (int crse_iteration)
             mf[0].writeOn(ofs);
         }
     }
+
+    if (avg_interval > 0)
+    {
+      const amrex::Real dt_level = parent->dtLevel(level);
+      time_average(time_avg[level], time_avg_fluct[level], dt_avg[level], dt_level);
+    }
+
 }
 
 //
@@ -2705,7 +2829,7 @@ NavierStokesBase::restart (Amr&          papa,
                            std::istream& is,
                            bool          bReadSpecial)
 {
-    AmrLevel::restart(papa,is,bReadSpecial);
+  AmrLevel::restart(papa,is,bReadSpecial);
 
 #ifdef AMREX_USE_EB
     amrex::Warning("Restart not tested with EB yet.");
