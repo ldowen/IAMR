@@ -61,12 +61,14 @@ int   max_grid_size(4096);
 const std::string CheckPointVersion = "CheckPointVersion_1.0";
 std::string interp_kind;
 
+Real avg_time;
+Real avg_time_fluct;
+bool TimeAverageFile_exist = false;
+int flag_eb = 0;
 
 Vector<int> nsets_save(1);
 
 VisMF::How how = VisMF::OneFilePerCPU;
-
-int ngrow = 1; // WARNING: this works for IAMR with no EB, but this number may be different for EB
 
 // ---------------------------------------------------------------
 struct FakeStateData {
@@ -130,7 +132,9 @@ static void ScanArguments() {
     if(pp.contains("interp_kind")) {
       pp.get("interp_kind", interp_kind);
     }
-
+    if(pp.contains("flag_eb")) {
+      pp.get("flag_eb", flag_eb);
+    }
     if (user_ratio != 2 && user_ratio != 4)
        amrex::Abort("user_ratio must be 2 or 4");
 
@@ -330,6 +334,28 @@ static void ReadCheckpointFile(const std::string& fileName) {
         }
       }
     }
+
+
+    // Reading the averaged times if we have the Average_Type in the checkpointfile
+    std::string TimeAvg_File = fileName;
+
+    TimeAvg_File += '/';
+    TimeAvg_File += "TimeAverage";
+
+    VisMF::IO_Buffer io_buffer_avg(VisMF::IO_Buffer_Size);
+
+    std::ifstream is_avg;
+    is_avg.rdbuf()->pubsetbuf(io_buffer_avg.dataPtr(), io_buffer_avg.size());
+    is_avg.open(TimeAvg_File.c_str(), std::ios::in);
+    if(  is_avg.good()) {
+      TimeAverageFile_exist = true;
+
+      std::string first_line_avg;
+      std::getline(is_avg,first_line_avg);
+      is_avg >> avg_time;
+      is_avg >> avg_time_fluct;     
+    }
+
 }
 
 // ---------------------------------------------------------------
@@ -361,7 +387,7 @@ static void WriteCheckpointFile(const std::string& inFileName, const std::string
 
     HeaderFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
 
-    int old_prec(0), i;
+    int old_prec(0), i, ndesc_save;
 
     if(ParallelDescriptor::IOProcessor()) {
         // Only the IOProcessor() writes to the header file.
@@ -405,6 +431,7 @@ static void WriteCheckpointFile(const std::string& inFileName, const std::string
       std::ostream &os = HeaderFile;
       FakeAmrLevel &falRef = fakeAmr_trgt.fakeAmrLevels[lev];
       int ndesc = falRef.state.size();
+      ndesc_save = ndesc;
 
       // Build directory to hold the MultiFabs in the StateData at this level.
       char buf[64];
@@ -528,6 +555,35 @@ static void WriteCheckpointFile(const std::string& inFileName, const std::string
     }
 
     FArrayBox::setFormat(thePrevFormat);
+
+    // Writing time averaged data
+    if (TimeAverageFile_exist)
+    {
+      const std::string ckfile = outFileName;
+
+      std::string HeaderFileName = ckfile + "/TimeAverage";
+
+      VisMF::IO_Buffer io_buffer(VisMF::IO_Buffer_Size);
+
+      std::ofstream HeaderFile;
+
+      HeaderFile.rdbuf()->pubsetbuf(io_buffer.dataPtr(), io_buffer.size());
+      HeaderFile.precision(18);
+      if(ParallelDescriptor::IOProcessor()) {
+        // Only the IOProcessor() writes to the header file.
+        HeaderFile.open(HeaderFileName.c_str(),
+                        std::ios::out|std::ios::trunc|std::ios::binary);
+
+        if( ! HeaderFile.good()) {
+          amrex::FileOpenFailed(HeaderFileName);
+        }
+
+        HeaderFile << "Writing time_average to checkpoint" << '\n'
+                   << avg_time       << '\n'
+                   << avg_time_fluct           << '\n';
+      }
+    }
+
 }
 
 
@@ -588,9 +644,32 @@ static void ConvertData() {
 
     DistributionMapping dm_trgt{new_grids};
 
+    int ngrow_loc;
+
     for (int n = 0; n < falRef_src.state.size(); n++){
 
-// Assuming that OldState and NewState have the same number of components
+      if (!flag_eb){
+        if(n <= 1) ngrow_loc = 1;
+        if(n == 2) ngrow_loc = 0;
+      }else{
+        if(n == 0) ngrow_loc = 4;
+        if(n == 1 || n == 2) ngrow_loc = 1;
+      }
+
+      // We don't have the same number of ghost-cells for each data type
+      // Warning, this should be adapted for EB 
+      if (falRef_src.state.size() == 4 && n == falRef_src.state.size()-1){
+        ngrow_loc = 0; // For this case, we just have Average_Type and no Divu_Type and Dsdt_type
+      }
+      else if (falRef_src.state.size() == 5 && n == falRef_src.state.size()-1){
+        ngrow_loc = 0; // For this case, we have Divu_Type and Dsdt_type, no Average_Type
+      } 
+      else if (falRef_src.state.size() == 6 && n >= falRef_src.state.size()-2){
+        ngrow_loc = 0; // Here we have both Average_Type and Divu and Dsdt types
+      }
+
+
+      // Assuming that OldState and NewState have the same number of components
       int ncomps = (falRef_src.state[n].old_data)->nComp();
 
       BoxArray new_grids_state = falRef_trgt.state[n].grids;
@@ -610,16 +689,17 @@ static void ConvertData() {
          falRef_trgt.state[n].domain.coarsen(user_ratio);
        }
 
-      MultiFab * NewData_src = new MultiFab(save_grids_state,dm,ncomps,ngrow);
-      MultiFab * OldData_src = new MultiFab(save_grids_state,dm,ncomps,ngrow);
+
+      MultiFab * NewData_src = new MultiFab(save_grids_state,dm,ncomps,ngrow_loc);
+      MultiFab * OldData_src = new MultiFab(save_grids_state,dm,ncomps,ngrow_loc);
       NewData_src -> setVal(10.); 
       OldData_src -> setVal(10.);
 
-      NewData_src -> copy(*(falRef_src.state[n].new_data),0,0,ncomps,0,ngrow);
-      OldData_src -> copy(*(falRef_src.state[n].old_data),0,0,ncomps,0,ngrow);
+      NewData_src -> copy(*(falRef_src.state[n].new_data),0,0,ncomps,0,ngrow_loc);
+      OldData_src -> copy(*(falRef_src.state[n].old_data),0,0,ncomps,0,ngrow_loc);
 
-      MultiFab * NewData_trgt = new MultiFab(new_grids_state,dm_trgt,ncomps,ngrow);
-      MultiFab * OldData_trgt = new MultiFab(new_grids_state,dm_trgt,ncomps,ngrow);
+      MultiFab * NewData_trgt = new MultiFab(new_grids_state,dm_trgt,ncomps,ngrow_loc);
+      MultiFab * OldData_trgt = new MultiFab(new_grids_state,dm_trgt,ncomps,ngrow_loc);
       NewData_trgt->setVal(10.);
       OldData_trgt->setVal(10.);
 
