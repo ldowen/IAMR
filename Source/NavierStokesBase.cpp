@@ -132,7 +132,6 @@ int  NavierStokesBase::num_state_type                     = 2;
 int  NavierStokesBase::have_divu                          = 0;
 int  NavierStokesBase::have_dsdt                          = 0;
 Real NavierStokesBase::divu_relax_factor                  = 0.0;
-int  NavierStokesBase::S_in_vel_diffusion                 = 0;
 int  NavierStokesBase::do_init_vort_proj                  = 0;
 int  NavierStokesBase::do_init_proj                       = 1;
 
@@ -145,8 +144,6 @@ Real NavierStokesBase::volWgtSum_sub_dy       = -1;
 Real NavierStokesBase::volWgtSum_sub_dz       = -1;
 
 int  NavierStokesBase::do_mom_diff            = 0;
-int  NavierStokesBase::predict_mom_together   = 0;
-bool NavierStokesBase::def_harm_avg_cen2edge  = false;
 
 bool NavierStokesBase::godunov_use_ppm = false;
 bool NavierStokesBase::godunov_use_forces_in_trans = false;
@@ -486,7 +483,7 @@ NavierStokesBase::Initialize ()
     if (do_scalar_update_in_order) {
 	    const int n_scalar_update_order_vals = pp.countval("scalar_update_order");
 	    scalarUpdateOrder.resize(n_scalar_update_order_vals);
-	    int got_scalar_update_order = pp.queryarr("scalar_update_order",scalarUpdateOrder,0,n_scalar_update_order_vals);
+	    pp.queryarr("scalar_update_order",scalarUpdateOrder,0,n_scalar_update_order_vals);
     }
 
     // Don't let init_shrink be greater than 1
@@ -494,14 +491,6 @@ NavierStokesBase::Initialize ()
         amrex::Abort("NavierStokesBase::Initialize(): init_shrink cannot be greater than 1");
 
     pp.query("divu_relax_factor",divu_relax_factor);
-    pp.query("S_in_vel_diffusion",S_in_vel_diffusion);
-    if ( S_in_vel_diffusion ){
-      // Currently, we should use the TensorOp to compute the divU terms in divtau.
-      // The code is still present to use the source term S instead of a numerically
-      // computed divu, however, divmusi terms isn't EB-aware.
-      // Perhaps one day a comparision would be interesting.
-      amrex::Abort("S_in_vel_diffusion not currently supported.\n");
-    }
     pp.query("be_cn_theta",be_cn_theta);
     if (be_cn_theta > 1.0 || be_cn_theta < .5)
         amrex::Abort("NavierStokesBase::Initialize(): Must have be_cn_theta <= 1.0 && >= .5");
@@ -528,15 +517,6 @@ NavierStokesBase::Initialize ()
 
     // Are we going to do velocity or momentum update?
     pp.query("do_mom_diff",do_mom_diff);
-    pp.query("predict_mom_together",predict_mom_together);
-
-    if (do_mom_diff == 0 && predict_mom_together == 1)
-    {
-      amrex::Print() << "MAKES NO SENSE TO HAVE DO_MOM_DIFF=0 AND PREDICT_MOM_TOGETHER=1\n";
-      exit(0);
-    }
-
-    pp.query("harm_avg_cen2edge", def_harm_avg_cen2edge);
 
 #ifdef AMREX_PARTICLES
     read_particle_params ();
@@ -1784,7 +1764,7 @@ NavierStokesBase::init (AmrLevel &old)
     const Real    dt_old    = cur_time - prev_time;
     MultiFab&     S_new     = get_new_data(State_Type);
     MultiFab&     P_new     = get_new_data(Press_Type);
-    MultiFab&     P_old     = get_old_data(Press_Type);
+    MultiFab&     Gp_new    = get_new_data(Gradp_Type);
 
     setTimeLevel(cur_time,dt_old,dt_new);
 
@@ -1793,35 +1773,7 @@ NavierStokesBase::init (AmrLevel &old)
     // Get best state and pressure data.
     //
     FillPatch(old,S_new,0,cur_time,State_Type,0,NUM_STATE);
-    {
-       FillPatchIterator fpi(old,P_new,0,cur_pres_time,Press_Type,0,1);
-       const MultiFab& mf_fpi = fpi.get_mf();
-#ifdef _OPENMP
-#pragma omp parallel if (Gpu::notInLaunchRegion())
-#endif
-       for (MFIter mfi(mf_fpi,TilingIfNotGPU()); mfi.isValid(); ++mfi)
-       {
-         const Box& bx  = mfi.tilebox();
-          const auto& p_arr = mf_fpi.array(mfi);
-          const auto& p_o = P_old.array(mfi);
-          const auto& p_n = P_new.array(mfi);
-          amrex::ParallelFor(bx, [p_arr, p_o, p_n] 
-          AMREX_GPU_DEVICE(int i, int j, int k) noexcept
-          {
-             p_o(i,j,k) = p_arr(i,j,k);
-             p_n(i,j,k) = p_arr(i,j,k);
-          });
-       }
-    }
-
-    //
-    // FIXME?
-    // Do we need to fill old too, like Pressure? Not sure P_old really needs filling
-    // because doesn't advance setup swap old and new?
-    // *Think* estTimeStep will look at new, and then advance_setup will swap new into
-    // old, so only need to fill new, right?
-    //
-    MultiFab& Gp_new = get_new_data(Gradp_Type);
+    FillPatch(old,P_new,0,cur_pres_time,Press_Type,0,1);
     FillPatch(old,Gp_new,Gp_new.nGrow(),cur_pres_time,Gradp_Type,0,AMREX_SPACEDIM);
 
     if (avg_interval > 0){
@@ -1845,7 +1797,6 @@ NavierStokesBase::init (AmrLevel &old)
     }
 
     old_intersect_new          = amrex::intersect(grids,oldns->boxArray());
-    is_first_step_after_regrid = true;
 }
 
 //
@@ -1856,6 +1807,7 @@ NavierStokesBase::init ()
 {
     MultiFab& S_new = get_new_data(State_Type);
     MultiFab& P_new = get_new_data(Press_Type);
+    MultiFab& Gp_new = get_new_data(Gradp_Type);
 
     BL_ASSERT(level > 0);
 
@@ -1887,16 +1839,6 @@ NavierStokesBase::init ()
     //
     FillCoarsePatch(S_new,0,cur_time,State_Type,0,NUM_STATE);
     FillCoarsePatch(P_new,0,cur_pres_time,Press_Type,0,1);
-
-    // FIXME don't need this here? advance_setup will take care of filling old?
-    // Need to initGpOld too???
-    initOldFromNew(Press_Type);
-
-    //
-    // FIXME?
-    // Need to think about if we need the old GP created too. See comment in
-    // init(old) above.
-    MultiFab& Gp_new = get_new_data(Gradp_Type);
     FillCoarsePatch(Gp_new,0,cur_pres_time,Gradp_Type,0,AMREX_SPACEDIM,Gp_new.nGrow());
     //
     // Get best coarse divU and dSdt data.
@@ -1985,7 +1927,7 @@ NavierStokesBase::initialTimeStep ()
 // pressure solver in Pnew, we need to copy it to Pold at the start.
 //
 void
-NavierStokesBase::initOldFromNew (Real type)
+NavierStokesBase::initOldFromNew (int type)
 {
     MultiFab& new_t = get_new_data(type);
     MultiFab& old_t = get_old_data(type);
@@ -2106,9 +2048,6 @@ NavierStokesBase::level_sync (int crse_iteration)
     Real  cur_fine_pres_time = fine_lev.state[Press_Type].curTime();
     Real prev_fine_pres_time = fine_lev.state[Press_Type].prevTime();
 
-    bool first_crse_step_after_initial_iters =
-      (prev_crse_pres_time > state[State_Type].prevTime());
-
     projector->MLsyncProject(level,pres,vel,cc_rhs_crse,
 			     pres_fine,v_fine,cc_rhs_fine,
 			     Rh,rho_fine,Vsync,V_corr,
@@ -2147,9 +2086,7 @@ NavierStokesBase::level_sync (int crse_iteration)
 
       SyncInterp(V_corr, level+1, U_new, lev, ratio,
 		 0, 0, BL_SPACEDIM, 1 , dt, fine_sync_bc.dataPtr());
-      SyncProjInterp(phi, level+1, P_new, P_old, lev, ratio,
-		     first_crse_step_after_initial_iters,
-		     cur_crse_pres_time, prev_crse_pres_time);
+      SyncProjInterp(phi, level+1, P_new, P_old, lev, ratio);
 
       // Update Gradp old and new, since both are corrected in SyncProjInterp
       // FIXME? Unsure that updating old is really necessary
@@ -2716,7 +2653,6 @@ NavierStokesBase::post_timestep (int crse_iteration)
     if (level > 0) incrPAvg();
 
     old_intersect_new          = grids;
-    is_first_step_after_regrid = false;
 
     if (level == 0 && dump_plane >= 0)
     {
@@ -2933,7 +2869,6 @@ NavierStokesBase::restart (Amr&          papa,
     viscn_cc = new MultiFab(grids, dmap, 1, 1, MFInfo(), Factory());
     viscnp1_cc = new MultiFab(grids, dmap, 1, 1, MFInfo(), Factory());
 
-    is_first_step_after_regrid = false;
     old_intersect_new          = grids;
 
     //
@@ -3450,10 +3385,7 @@ NavierStokesBase::SyncProjInterp (MultiFab& phi,
                                   MultiFab& P_new,
                                   MultiFab& P_old,
                                   int       f_lev,
-                                  IntVect&  ratio,
-                                  bool      first_crse_step_after_initial_iters,
-                                  Real      cur_crse_pres_time,
-                                  Real      prev_crse_pres_time)
+                                  IntVect&  ratio)
 {
     BL_PROFILE("NavierStokesBase:::SyncProjInterp()");
 
@@ -3493,10 +3425,6 @@ NavierStokesBase::SyncProjInterp (MultiFab& phi,
     ///
     EB_set_covered(crse_phi,0.);
 #endif
-
-    NavierStokesBase& fine_lev        = getLevel(f_lev);
-    const Real    cur_fine_pres_time  = fine_lev.state[Press_Type].curTime();
-    const Real    prev_fine_pres_time = fine_lev.state[Press_Type].prevTime();
 
 #ifdef _OPENMP
 #pragma omp parallel if (Gpu::notInLaunchRegion())
@@ -3556,11 +3484,6 @@ NavierStokesBase::velocity_advection (Real dt)
         }
         else
         {
-            if (predict_mom_together == 0)
-            {
-                amrex::Print() << "Must set predict_mom_together == 1 in NavierStokesBase." << '\n';
-                exit(0);
-            }
             amrex::Print() << "... advect momenta\n";
         }
     }
@@ -3868,7 +3791,6 @@ NavierStokesBase::velocity_advection_update (Real dt)
         // Average the new and old time to get Crank-Nicholson half time approximation.
         //
         //FIXME - need to address this for EB
-        auto const& vel  = VelFAB.array();
         auto const& scal = ScalFAB.array();
         Elixir scal_i = ScalFAB.elixir();
         auto const& scal_o = U_old.array(mfi,Density);
@@ -5201,7 +5123,6 @@ NavierStokesBase::predict_velocity (Real  dt)
     {
         for (MFIter U_mfi(Umf,TilingIfNotGPU()); U_mfi.isValid(); ++U_mfi)
         {
-            Box bx=U_mfi.tilebox();
             FArrayBox& Ufab = Umf[U_mfi];
             auto const  gbx = U_mfi.growntilebox(ngrow);
 
@@ -5227,7 +5148,6 @@ NavierStokesBase::predict_velocity (Real  dt)
         }
     }
 
-    //velpred=1 only, use_minion=1, ppm_type, slope_order
     Godunov::ExtrapVelToFaces( Umf, forcing_term, AMREX_D_DECL(u_mac[0], u_mac[1], u_mac[2]),
                                m_bcrec_velocity, m_bcrec_velocity_d.dataPtr(), geom, dt,
 			       godunov_use_ppm, godunov_use_forces_in_trans );

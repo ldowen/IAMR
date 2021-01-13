@@ -361,10 +361,7 @@ public:
                          amrex::MultiFab& P_new,
                          amrex::MultiFab& P_old,
                          int       f_lev,
-                         amrex::IntVect&  ratio,
-                         bool      first_crse_step_after_initial_iters,
-                         amrex::Real      cur_crse_pres_time,
-                         amrex::Real      prev_crse_pres_time);
+                         amrex::IntVect&  ratio);
 
     void sync_setup (amrex::MultiFab*& DeltaSsync);
     void sync_cleanup (amrex::MultiFab*& DeltaSsync);
@@ -546,7 +543,7 @@ public:
     // Compile p_avg in advance.
     //
     void incrPAvg ();
-    void initOldFromNew (amrex::Real type); // Initialize old with new
+    void initOldFromNew (int type); // Initialize old with new
     //
     // Compile rho_avg in advance.
     //
@@ -678,10 +675,6 @@ public:
     //
     amrex::Vector< amrex::Vector<amrex::Real> > radius;
     //
-    // Flag for doing first step after regrid
-    //
-    bool is_first_step_after_regrid;
-    //
     // Intersection of current amrex::BoxArray with that from before regrid.
     //
     amrex::BoxArray old_intersect_new;
@@ -794,7 +787,6 @@ public:
     static int  have_divu;
     static int  have_dsdt;
     static amrex::Real divu_relax_factor;
-    static int  S_in_vel_diffusion;
     static int  do_init_vort_proj;
     static int  do_init_proj;
     //
@@ -811,8 +803,6 @@ public:
     // Control velocity vs momentum update
     //
     static int  do_mom_diff;
-    static int  predict_mom_together;
-    static bool def_harm_avg_cen2edge;
     //
     // static integer constants
     //
@@ -822,7 +812,7 @@ public:
     static const int DIVU_GROW  = 1;
     static const int DSDT_GROW  = 1;
 #ifdef AMREX_USE_EB
-  // MOL doesn't require gradp ghost cells
+    // MOL doesn't require gradp ghost cells
     static const int gradp_grow = 0;
 #else
     static const int gradp_grow = 1;
