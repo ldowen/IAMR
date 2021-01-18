@@ -1288,6 +1288,19 @@ NavierStokes::writePlotFile (const std::string& dir,
     std::string TheFullPath = FullPath;
     TheFullPath += BaseName;
     VisMF::Write(plotMF,TheFullPath,how,true);
+
+    //
+    // Put particles in plotfile?
+    // Used in regression testing, but also useful if you want to use
+    // AMReX's tool particle_compare without writing a full checkpoint
+    //
+#ifdef AMREX_PARTICLES
+    if (level == 0 && theNSPC() != 0 && particles_in_plotfile)
+    {
+      theNSPC()->Checkpoint(dir,"Particles");
+    }
+#endif
+
 }
 
 std::unique_ptr<MultiFab>
@@ -1351,20 +1364,6 @@ NavierStokes::post_init (Real stop_time)
     //
     if (sum_interval > 0)
         sum_integrated_quantities();
-#if (BL_SPACEDIM==3)
-    //
-    // Derive turbulent statistics
-    //
-    if (turb_interval > 0)
-        sum_turbulent_quantities();
-#ifdef SUMJET
-    //
-    // Derive turbulent statistics for the round jet
-    //
-    if (jet_interval > 0)
-        sum_jet_quantities();
-#endif
-#endif
 
     if (NavierStokesBase::avg_interval > 0)
     {

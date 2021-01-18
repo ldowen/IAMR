@@ -399,21 +399,6 @@ public:
     amrex::Real volWgtSum (const std::string& name,
                     amrex::Real               time);
 
-#if (BL_SPACEDIM == 3)
-    void sum_turbulent_quantities ();
-    void TurbSum (amrex::Real time, amrex::Real *tmp, int  ksize, int turbVars);
-#ifdef SUMJET
-    void sum_jet_quantities ();
-    void JetSum   (amrex::Real time,
-		   amrex::Real *jetData,
-		   int  levRsize,
-		   int  levKsize,
-		   int  rsize,
-		   int  ksize,
-		   int  jetVars);
-#endif
-#endif
-
     //////////////////////////////////////////////////////////////////
     //    NavierStokesBase virtual functions                        //
     //////////////////////////////////////////////////////////////////
@@ -701,9 +686,6 @@ public:
     static int  initial_step;         // flag for initial iterations
     static amrex::Real dt_cutoff;     // minimum dt allowed
     static int  sum_interval;         // number of timesteps for conservation stats
-    static int  turb_interval;        // number of timesteps for turbulence stats
-    static int  jet_interval;         // number of timesteps for turbulence stats for the round jet
-    static int  jet_interval_split;   // cell divisor for each dimension in numerical integration
     //
     // Internal parameters for options.
     //
@@ -834,6 +816,12 @@ public:
 
   static int average_in_checkpoint;
 
+#ifdef AMREX_PARTICLES
+  //
+  // Put particle info in plotfile (using ParticleContainer::Checkpoint)?
+  //
+  static bool particles_in_plotfile;
+#endif
 };
 
 #endif

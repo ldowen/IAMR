@@ -70,9 +70,6 @@ int  NavierStokesBase::initial_iter       = false;
 int  NavierStokesBase::initial_step       = false;
 Real NavierStokesBase::dt_cutoff          = 0.0;
 int  NavierStokesBase::sum_interval       = -1;
-int  NavierStokesBase::turb_interval      = -1;
-int  NavierStokesBase::jet_interval       = -1;
-int  NavierStokesBase::jet_interval_split = 2;
 
 int  NavierStokesBase::radius_grow = 1;
 int  NavierStokesBase::verbose     = 0;
@@ -173,6 +170,8 @@ namespace
 }
 
 #ifdef AMREX_PARTICLES
+bool NavierStokesBase::particles_in_plotfile = false;
+
 namespace
 {
     //
@@ -434,9 +433,6 @@ NavierStokesBase::Initialize ()
     pp.query("stop_when_steady",stop_when_steady);
     pp.query("steady_tol",steady_tol);
     pp.query("sum_interval",sum_interval);
-    pp.query("turb_interval",turb_interval);
-    pp.query("jet_interval",jet_interval);
-    pp.query("jet_interval_split",jet_interval_split);
     pp.query("gravity",gravity);
     //
     // Get run options.
@@ -2631,24 +2627,6 @@ NavierStokesBase::post_timestep (int crse_iteration)
     {
         sum_integrated_quantities();
     }
-#if (AMREX_SPACEDIM==3)
-    //
-    // Derive turbulent statistics
-    //
-    if (level==0 && turb_interval>0 && (parent->levelSteps(0)%turb_interval == 0))
-    {
-        sum_turbulent_quantities();
-    }
-#ifdef SUMJET
-    //
-    // Derive turbulent statistics for the round jet
-    //
-    if (level==0 && jet_interval>0 && (parent->levelSteps(0)%jet_interval == 0))
-    {
-        sum_jet_quantities();
-    }
-#endif
-#endif
 
     if (level > 0) incrPAvg();
 
@@ -4071,313 +4049,6 @@ NavierStokesBase::volWgtSum (const std::string& name,
     return volwgtsum;
 }
 
-#if (AMREX_SPACEDIM == 3)
-void
-NavierStokesBase::sum_turbulent_quantities ()
-{
-    Real time = state[State_Type].curTime();
-    const int finestLevel = parent->finestLevel();
-    const Real *dx = parent->Geom(finestLevel).CellSize();
-    const int ksize(parent->Geom(finestLevel).Domain().length(2));
-    const int turbVars(33);
-    int refRatio(1);
-
-    Real* turb = new Real[turbVars*ksize];
-
-    for (int i=0; i<turbVars*ksize; i++) turb[i]=0;
-
-    for (int lev = finestLevel; lev >= 0; lev--)
-    {
-	const int levKsize(parent->Geom(lev).Domain().length(2));
-
-	Real* levTurb = new Real[turbVars*levKsize];
-
-	for (int i=0; i<turbVars*levKsize; i++) levTurb[i]=0;
-
-        NavierStokesBase& ns_level = getLevel(lev);
-	ns_level.TurbSum(time,levTurb,levKsize,turbVars);
-
-	if (lev<finestLevel)  refRatio *= parent->refRatio(lev)[2];
-	else                  refRatio  = 1;
-
-	for (int l=0, k=0; l<levKsize; l++)
-	    for (int r=0; r<refRatio; r++, k++)
-		for (int v=0; v<turbVars; v++)
-		    turb[k*turbVars+v] += levTurb[l*turbVars+v];
-
-	delete [] levTurb;
-    }
-
-    ParallelDescriptor::ReduceRealSum(&turb[0], ksize*turbVars, ParallelDescriptor::IOProcessorNumber());
-
-    if (ParallelDescriptor::IOProcessor())
-    {
-        std::string DirPath = "TurbData";
-        if (!amrex::UtilCreateDirectory(DirPath, 0755))
-            amrex::CreateDirectoryFailed(DirPath);
-
-        const int steps = parent->levelSteps(0);
-        FILE *file;
-
-        std::string filename = amrex::Concatenate("TurbData/TurbData_", steps, 4);
-        filename += ".dat";
-
-        file = fopen(filename.c_str(),"w");
-        for (int k=0; k<ksize; k++)
-        {
-            fprintf(file,"%e ",dx[2]*(0.5+(double)k));
-            for (int v=0; v<turbVars; v++)
-                fprintf(file,"%e ",turb[k*turbVars+v]);
-            fprintf(file,"\n");
-        }
-        fclose(file);
-    }
-
-    delete [] turb;
-}
-
-void
-NavierStokesBase::TurbSum (Real time, Real *turb, int ksize, int turbVars)
-{
-    const Real* dx = geom.CellSize();
-
-    const int turbGrow(0);
-    const int presGrow(0);
-    auto turbMF = derive("TurbVars",time,turbGrow);
-    auto presMF = derive("PresVars",time,presGrow);
-
-    BoxArray baf;
-
-    if (level < parent->finestLevel())
-    {
-        baf = parent->boxArray(level+1);
-        baf.coarsen(fine_ratio);
-    }
-
-    std::vector< std::pair<int,Box> > isects;
-
-    for (MFIter turbMfi(*turbMF), presMfi(*presMF);
-	 turbMfi.isValid() && presMfi.isValid();
-	 ++turbMfi, ++presMfi)
-    {
-	FArrayBox& turbFab = (*turbMF)[turbMfi];
-	FArrayBox& presFab = (*presMF)[presMfi];
-
-        if (level < parent->finestLevel())
-        {
-            baf.intersections(grids[turbMfi.index()],isects);
-
-            for (int ii = 0, N = isects.size(); ii < N; ii++)
-            {
-                presFab.setVal<RunOn::Gpu>(0,isects[ii].second,0,presMF->nComp());
-                turbFab.setVal<RunOn::Gpu>(0,isects[ii].second,0,turbMF->nComp());
-            }
-        }
-    }
-
-    turbMF->FillBoundary(0,turbMF->nComp(), geom.periodicity());
-    presMF->FillBoundary(0,presMF->nComp(), geom.periodicity());
-
-    for (MFIter turbMfi(*turbMF), presMfi(*presMF);
-	 turbMfi.isValid() && presMfi.isValid();
-	 ++turbMfi, ++presMfi)
-    {
-	FArrayBox& turbFab = (*turbMF)[turbMfi];
-	FArrayBox& presFab = (*presMF)[presMfi];
-
-        const Real* turbData = turbFab.dataPtr();
-        const Real* presData = presFab.dataPtr();
-        const int*  dlo = turbFab.loVect();
-        const int*  dhi = turbFab.hiVect();
-        const int*  plo = presFab.loVect();
-        const int*  phi = presFab.hiVect();
-	const Box& grdbx = grids[turbMfi.index()];
-        const int*  lo  = grdbx.loVect();
-        const int*  hi  = grdbx.hiVect();
-
-        sumturb(turbData,presData,ARLIM(dlo),ARLIM(dhi),ARLIM(plo),ARLIM(phi),ARLIM(lo),ARLIM(hi),
-		     dx,turb,&ksize,&turbVars);
-   }
-}
-
-#ifdef SUMJET
-void
-NavierStokesBase::JetSum (Real time, Real *jetData, int levRsize,  int levKsize,  int rsize,  int ksize, int jetVars)
-{
-    const Real* dx = geom.CellSize();
-
-    const int turbGrow(0);
-    const int presGrow(0);
-
-    auto turbMF = derive("JetVars",time,turbGrow);
-    auto presMF = derive("JetPresVars",time,presGrow);
-
-    BoxArray baf;
-
-    if (level < parent->finestLevel())
-    {
-        baf = parent->boxArray(level+1);
-        baf.coarsen(fine_ratio);
-    }
-
-    std::vector< std::pair<int,Box> > isects;
-
-    for (MFIter turbMfi(*turbMF), presMfi(*presMF);
-	 turbMfi.isValid() && presMfi.isValid();
-	 ++turbMfi, ++presMfi)
-    {
-	FArrayBox& turbFab = (*turbMF)[turbMfi];
-	FArrayBox& presFab = (*presMF)[presMfi];
-
-        if (level < parent->finestLevel())
-        {
-            baf.intersections(grids[turbMfi.index()],isects);
-
-            for (int ii = 0, N = isects.size(); ii < N; ii++)
-            {
-                presFab.setVal(0,isects[ii].second,0,presMF->nComp());
-                turbFab.setVal(0,isects[ii].second,0,turbMF->nComp());
-            }
-        }
-    }
-
-    turbMF->FillBoundary(0,turbMF->nComp(), geom.periodicity());
-    presMF->FillBoundary(0,presMF->nComp(), geom.periodicity());
-
-    for (MFIter turbMfi(*turbMF), presMfi(*presMF);
-	 turbMfi.isValid() && presMfi.isValid();
-	 ++turbMfi, ++presMfi)
-    {
-	FArrayBox& turbFab = (*turbMF)[turbMfi];
-	FArrayBox& presFab = (*presMF)[presMfi];
-
-        RealBox     gridloc  = RealBox(grids[turbMfi.index()],geom.CellSize(),geom.ProbLo());
-        const Real* turbData = turbFab.dataPtr();
-        const Real* presData = presFab.dataPtr();
-        const int*  dlo = turbFab.loVect();
-        const int*  dhi = turbFab.hiVect();
-        const int*  plo = presFab.loVect();
-        const int*  phi = presFab.hiVect();
-        const int*  lo  = grids[turbMfi.index()].loVect();
-        const int*  hi  = grids[turbMfi.index()].hiVect();
-
-        sumjet(turbData,presData,ARLIM(dlo),ARLIM(dhi),ARLIM(plo),ARLIM(phi),ARLIM(lo),ARLIM(hi),
-		    dx,jetData,&levRsize,&levKsize,&rsize,&ksize,&jetVars,&jet_interval_split,
-		    gridloc.lo(),gridloc.hi());
-    }
-}
-
-void
-NavierStokesBase::sum_jet_quantities ()
-{
-    Real time = state[State_Type].curTime();
-    const int finestLevel = parent->finestLevel();
-    const Real *dx = parent->Geom(finestLevel).CellSize();
-    const int isize(parent->Geom(finestLevel).Domain().length(0));
-    const int ksize(parent->Geom(finestLevel).Domain().length(2));
-    const int rsize=isize>>1;
-    const int jetVars(104);
-
-    amrex::Print() << "NavierStokesBase::sum_jet_quantities():" << '\n'
-		   << "   jetVars: " << jetVars << '\n'
-		   << "   rsize  : " << rsize << '\n'
-		   << "   ksize  : " << ksize << '\n';
-
-    Real* jetData = new Real[jetVars*ksize*rsize];
-
-    for (int i=0; i<jetVars*ksize*rsize; i++) jetData[i]=0;
-
-    for (int lev = finestLevel; lev >= 0; lev--)
-    {
-	const int levIsize(parent->Geom(lev).Domain().length(0));
-	const int levKsize(parent->Geom(lev).Domain().length(2));
-	const int levRsize(levIsize>>1);
-
-        NavierStokesBase& ns_level = getLevel(lev);
-	ns_level.JetSum(time,jetData,levRsize,levKsize,rsize,ksize,jetVars);
-    }
-
-    ParallelDescriptor::ReduceRealSum(&jetData[0], ksize*rsize*jetVars, ParallelDescriptor::IOProcessorNumber());
-
-    if (ParallelDescriptor::IOProcessor())
-    {
-        amrex::Print() << "      Creating JetData..." << '\n';
-        std::string DirPath = "JetData";
-        if (!amrex::UtilCreateDirectory(DirPath, 0755))
-            amrex::CreateDirectoryFailed(DirPath);
-
-        const int steps = parent->levelSteps(0);
-        FILE *file;
-        std::string filename;
-
-	Vector<Real> r(rsize);
-	for (int i=0; i<rsize; i++)
-	    r[i] = dx[0]*(0.5+(double)i);
-	Vector<Real> z(ksize);
-	for (int k=0; k<ksize; k++)
-	    z[k] = dx[2]*(0.5+(double)k);
-
-#if 0
-        filename  = amrex::Concatenate("JetData/JetData_", steps, 4);
-        filename += "_r.dat";
-
-	file = fopen(filename.c_str(),"w");
-	for (int i=0; i<rsize; i++)
-	    fprintf(file,"%e ",r[i]);
-	fclose(file);
-
-        filename  = amrex::Concatenate("JetData/JetData_", steps, 4);
-        filename += "_z.dat";
-
-	file = fopen(filename.c_str(),"w");
-	for (int k=0; k<ksize; k++)
-	    fprintf(file,"%e ",dx[2]*(0.5+(double)k));
-	fclose(file);
-
-	for (int v=0; v<jetVars; v++) {
-
-            filename  = amrex::Concatenate("JetData/JetData_", steps, 4);
-            filename += amrex::Concatenate(filename + "_v", v, 4);
-            filename += ".dat";
-
-	    file = fopen(filename.c_str(),"w");
-	    for (int k=0; k<ksize; k++) {
-		for (int i=0; i<rsize; i++) {
-		    fprintf(file,"%e ",jetData[(k*rsize+i)*jetVars+v]);
-		}
-		fprintf(file,"\n");
-	    }
-	    fclose(file);
-	    amrex::Print() << "   ...done." << '\n';
-	}
-#else
-	std::string FullPath = amrex::Concatenate("JetData/JD", steps, 4);
-
-	if (!amrex::UtilCreateDirectory(FullPath, 0755))
-	    amrex::CreateDirectoryFailed(FullPath);
-
-        filename = FullPath;
-        filename += '/';
-        filename += "data.bin";
-
-	file=fopen(filename.c_str(),"w");
-	fwrite(&time,sizeof(double),1,file);
-	fwrite(&rsize,sizeof(int),1,file);
-	fwrite(&ksize,sizeof(int),1,file);
-	fwrite(&jetVars,sizeof(int),1,file);
-	fwrite(r.dataPtr(),sizeof(Real),rsize,file);
-	fwrite(z.dataPtr(),sizeof(Real),ksize,file);
-	fwrite(jetData,sizeof(Real),jetVars*rsize*ksize,file);
-	fclose(file);
-#endif
-    }
-
-    delete [] jetData;
-}
-#endif // SUMJET
-
-#endif  // (BL_SPACEDIM == 3)
-
 #ifdef AMREX_PARTICLES
 
 void
@@ -4431,6 +4102,10 @@ NavierStokesBase::read_particle_params ()
     // Used in post_restart() to write out the file of particles.
     //
     ppp.query("particle_output_file", particle_output_file);
+    //
+    // Put particle info in plotfile (using ParticleContainer::Checkpoint)?
+    //
+    ppp.query("particles_in_plotfile", particles_in_plotfile);
 }
 
 void
