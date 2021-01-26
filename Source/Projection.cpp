@@ -7,7 +7,7 @@
 #include <AMReX_BLProfiler.H>
 #include <Projection.H>
 #include <PROJECTION_F.H>
-#include <ProjOutFlowBC.H>
+#include <OutFlowBC.H>
 #include <NSB_K.H>
 
 #include <AMReX_MLMG.H>
@@ -121,7 +121,7 @@ Projection::Projection (Amr*   _parent,
     do_sync_proj(_do_sync_proj)
 {
 
-    BL_ASSERT ( parent->finestLevel()+1 <= maxlev );
+    AMREX_ASSERT ( parent->finestLevel()+1 <= maxlev );
 
     Initialize();
 
@@ -250,8 +250,8 @@ Projection::level_project (int             level,
 {
     BL_PROFILE("Projection::level_project()");
 
-    BL_ASSERT(rho_half.nGrow() >= 1);
-    BL_ASSERT(U_new.nGrow() >= 1);
+    AMREX_ASSERT(rho_half.nGrow() >= 1);
+    AMREX_ASSERT(U_new.nGrow() >= 1);
 
     if (verbose) {
       amrex::Print() << "... Projection::level_project() at level " << level << '\n';
@@ -290,7 +290,7 @@ Projection::level_project (int             level,
     const DistributionMapping& P_dmap = P_old.DistributionMap();
 
     NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(&parent->getLevel(level));
-    BL_ASSERT(!(ns==0));
+    AMREX_ASSERT(!(ns==0));
 
     //
     //  NOTE: IT IS IMPORTANT TO DO THE BOUNDARY CONDITIONS BEFORE
@@ -420,7 +420,7 @@ Projection::level_project (int             level,
     vel[level] = &U_new;
     phi[level] = &P_new;
 
-    BL_ASSERT( 1 == rho_half.nGrow());
+    AMREX_ASSERT( 1 == rho_half.nGrow());
     sig[level] = &rho_half;
 
     //
@@ -804,7 +804,7 @@ Projection::initialVelocityProject (int  c_lev,
 		  amrex::Error("Projection::initialVelocityProject(): Divu not found");
 
 		NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(LevelData[lev]);
-		BL_ASSERT(!(ns == 0));
+		AMREX_ASSERT(!(ns == 0));
 		
 		rhcc[lev].reset(ns->getDivCond(nghost,cur_divu_time));
             }
@@ -1111,7 +1111,7 @@ Projection::initialSyncProject (int       c_lev,
 
             NavierStokesBase* ns = dynamic_cast<NavierStokesBase*>(&parent->getLevel(lev));
 
-            BL_ASSERT(!(ns == 0));
+            AMREX_ASSERT(!(ns == 0));
 
             std::unique_ptr<MultiFab> divu (ns->getDivCond(nghost,strt_time));
             std::unique_ptr<MultiFab> dsdt (ns->getDivCond(nghost,strt_time+dt));
@@ -1265,7 +1265,7 @@ Projection::ConvertUnew (MultiFab&       Unew,
   for (MFIter Uoldmfi(Uold,true); Uoldmfi.isValid(); ++Uoldmfi)
   {
         const Box& bx=Uoldmfi.growntilebox(1);
-        BL_ASSERT(grids[Uoldmfi.index()].contains(Uoldmfi.tilebox())==true);
+        AMREX_ASSERT(grids[Uoldmfi.index()].contains(Uoldmfi.tilebox())==true);
 
         ConvertUnew(Unew[Uoldmfi],Uold[Uoldmfi],alpha,bx);
   }
@@ -1279,10 +1279,10 @@ void
 Projection::ConvertUnew( FArrayBox &Unew, FArrayBox &Uold, Real alpha,
                               const Box &grd )
 {
-    BL_ASSERT(Unew.nComp() >= AMREX_SPACEDIM);
-    BL_ASSERT(Uold.nComp() >= AMREX_SPACEDIM);
-    BL_ASSERT(Unew.contains(grd) == true);
-    BL_ASSERT(Uold.contains(grd) == true);
+    AMREX_ASSERT(Unew.nComp() >= AMREX_SPACEDIM);
+    AMREX_ASSERT(Uold.nComp() >= AMREX_SPACEDIM);
+    AMREX_ASSERT(Unew.contains(grd) == true);
+    AMREX_ASSERT(Uold.contains(grd) == true);
 
     const auto& unew = Unew.array();
     const auto& uold = Uold.array();
@@ -1318,16 +1318,16 @@ Projection::scaleVar (int             which_call,
                       MultiFab*       vel,
                       int             level)
 {
-    BL_ASSERT((which_call == INITIAL_VEL  ) ||
+    AMREX_ASSERT((which_call == INITIAL_VEL  ) ||
               (which_call == INITIAL_PRESS) ||
               (which_call == INITIAL_SYNC ) ||
               (which_call == LEVEL_PROJ   ) ||
               (which_call == SYNC_PROJ    ) );
 
     if (sig != 0)
-        BL_ASSERT(sig->nComp() == 1);
+        AMREX_ASSERT(sig->nComp() == 1);
     if (vel != 0)
-        BL_ASSERT(vel->nComp() >= AMREX_SPACEDIM);
+        AMREX_ASSERT(vel->nComp() >= AMREX_SPACEDIM);
 
     //
     // Convert sigma from rho to anel_coeff/rho if not INITIAL_PRESS.
@@ -1376,16 +1376,16 @@ Projection::rescaleVar (int             which_call,
                         MultiFab*       vel,
                         int             level)
 {
-    BL_ASSERT((which_call == INITIAL_VEL  ) ||
+    AMREX_ASSERT((which_call == INITIAL_VEL  ) ||
               (which_call == INITIAL_PRESS) ||
               (which_call == INITIAL_SYNC ) ||
               (which_call == LEVEL_PROJ   ) ||
               (which_call == SYNC_PROJ    ) );
 
     if (sig != 0)
-        BL_ASSERT(sig->nComp() == 1);
+        AMREX_ASSERT(sig->nComp() == 1);
     if (vel != 0)
-        BL_ASSERT(vel->nComp() >= AMREX_SPACEDIM);
+        AMREX_ASSERT(vel->nComp() >= AMREX_SPACEDIM);
 
     if (which_call  != INITIAL_PRESS && sig != 0 &&
         anel_coeff[level] != 0) AnelCoeffDiv(level,*sig,0);
@@ -1423,7 +1423,7 @@ Projection::radMultScal (int       level,
                          MultiFab& mf)
 {
 #if (AMREX_SPACEDIM < 3)
-    BL_ASSERT(radius_grow >= mf.nGrow());
+    AMREX_ASSERT(radius_grow >= mf.nGrow());
 
     const Box& domain = parent->Geom(level).Domain();
     const int* domlo  = domain.loVect();
@@ -1434,7 +1434,7 @@ Projection::radMultScal (int       level,
 #endif
     for (MFIter mfmfi(mf,true); mfmfi.isValid(); ++mfmfi)
     {
-      BL_ASSERT(mf.box(mfmfi.index()) == mfmfi.validbox());
+      AMREX_ASSERT(mf.box(mfmfi.index()) == mfmfi.validbox());
 
       const Box& bx = mfmfi.growntilebox();
       const int* lo = bx.loVect();
@@ -1458,7 +1458,7 @@ Projection::radMultVel (int       level,
                         MultiFab& mf)
 {
 #if (AMREX_SPACEDIM < 3)
-    BL_ASSERT(radius_grow >= mf.nGrow());
+    AMREX_ASSERT(radius_grow >= mf.nGrow());
 
     const Box& domain = parent->Geom(level).Domain();
     const int* domlo  = domain.loVect();
@@ -1471,7 +1471,7 @@ Projection::radMultVel (int       level,
     {
        for (MFIter mfmfi(mf,true); mfmfi.isValid(); ++mfmfi)
        {
-           BL_ASSERT(mf.box(mfmfi.index()) == mfmfi.validbox());
+           AMREX_ASSERT(mf.box(mfmfi.index()) == mfmfi.validbox());
 	   
 	   const Box& bx = mfmfi.growntilebox();
 	   const int* lo = bx.loVect();
@@ -1501,8 +1501,8 @@ Projection::radDiv (int       level,
                     int       comp)
 {
 #if (AMREX_SPACEDIM < 3)
-    BL_ASSERT(comp >= 0 && comp < mf.nComp());
-    BL_ASSERT(radius_grow >= mf.nGrow());
+    AMREX_ASSERT(comp >= 0 && comp < mf.nComp());
+    AMREX_ASSERT(radius_grow >= mf.nGrow());
 
     const Box& domain = parent->Geom(level).Domain();
     const int* domlo  = domain.loVect();
@@ -1515,7 +1515,7 @@ Projection::radDiv (int       level,
 #endif
     for (MFIter mfmfi(mf,true); mfmfi.isValid(); ++mfmfi)
     {
-        BL_ASSERT(mf.box(mfmfi.index()) == mfmfi.validbox());
+        AMREX_ASSERT(mf.box(mfmfi.index()) == mfmfi.validbox());
 
 	const Box& bx = mfmfi.growntilebox();
 	const int* lo = bx.loVect();
@@ -1543,8 +1543,8 @@ Projection::AnelCoeffMult (int       level,
                            MultiFab& mf,
                            int       comp)
 {
-    BL_ASSERT(anel_coeff[level] != 0);
-    BL_ASSERT(comp >= 0 && comp < mf.nComp());
+    AMREX_ASSERT(anel_coeff[level] != 0);
+    AMREX_ASSERT(comp >= 0 && comp < mf.nComp());
 
     const Box& domain = parent->Geom(level).Domain();
     const int* domlo  = domain.loVect();
@@ -1581,8 +1581,8 @@ Projection::AnelCoeffDiv (int       level,
                           MultiFab& mf,
                           int       comp)
 {
-    BL_ASSERT(comp >= 0 && comp < mf.nComp());
-    BL_ASSERT(anel_coeff[level] != 0);
+    AMREX_ASSERT(comp >= 0 && comp < mf.nComp());
+    AMREX_ASSERT(anel_coeff[level] != 0);
 
     const Box& domain = parent->Geom(level).Domain();
     const int* domlo  = domain.loVect();
@@ -1674,8 +1674,8 @@ Projection::initialVorticityProject (int c_lev)
 	{
 	  // rhnd has ng=0 as declared above
 	  const Box& bx = mfi.tilebox();
-	  (*rhnd[lev])[mfi].setVal<RunOn::Host>(0,bx);
-	  (*rhnd[lev])[mfi].copy<RunOn::Host>(P_new[mfi], bx, 0, bx, 0, 1);
+	  (*rhnd[lev])[mfi].setVal<RunOn::Gpu>(0,bx);
+	  (*rhnd[lev])[mfi].copy<RunOn::Gpu>(P_new[mfi], bx, 0, bx, 0, 1);
 	}
     }
 
@@ -1732,11 +1732,11 @@ Projection::initialVorticityProject (int c_lev)
                 const Box& box = mfi.tilebox();
                 if (add_vort_proj)
                 {
-                  (*vel[lev])[mfi].plus<RunOn::Host>((*u_real[lev])[mfi],box,Xvel+n,Xvel+idx[n], 1);
+                  (*vel[lev])[mfi].plus<RunOn::Gpu>((*u_real[lev])[mfi],box,Xvel+n,Xvel+idx[n], 1);
                 }
                 else
                 {
-                  (*vel[lev])[mfi].copy<RunOn::Host>((*u_real[lev])[mfi],box,Xvel+n,box,Xvel+idx[n], 1);
+                  (*vel[lev])[mfi].copy<RunOn::Gpu>((*u_real[lev])[mfi],box,Xvel+n,box,Xvel+idx[n], 1);
                 }
             }
         }
@@ -1838,13 +1838,13 @@ Projection::set_outflow_bcs (int        which_call,
                              int        f_lev,
                              int        have_divu)
 {
-    BL_ASSERT((which_call == INITIAL_VEL  ) ||
+    AMREX_ASSERT((which_call == INITIAL_VEL  ) ||
               (which_call == INITIAL_PRESS) ||
               (which_call == INITIAL_SYNC ) ||
               (which_call == LEVEL_PROJ   ) );
 
     if (which_call != LEVEL_PROJ)
-      BL_ASSERT(c_lev == 0);
+      AMREX_ASSERT(c_lev == 0);
 
     if (verbose)
       amrex::Print() << "...setting outflow bcs for the nodal projection ... " << '\n';
@@ -1912,7 +1912,7 @@ Projection::set_outflow_bcs (int        which_call,
         const Box&      valid_state_strip    = temp_state_strip & domain;
         const BoxArray  uncovered_outflow_ba = amrex::complementIn(valid_state_strip,Lgrids);
 
-        BL_ASSERT( !(uncovered_outflow_ba.size() &&
+        AMREX_ASSERT( !(uncovered_outflow_ba.size() &&
                      amrex::intersect(Lgrids,valid_state_strip).size()) );
 
         if ( !(uncovered_outflow_ba.size()) && fine_level[iface] == -1) {
@@ -1930,7 +1930,7 @@ Projection::set_outflow_bcs (int        which_call,
     }
 
     NavierStokesBase* ns0 = dynamic_cast<NavierStokesBase*>(LevelData[c_lev]);
-    BL_ASSERT(!(ns0 == 0));
+    AMREX_ASSERT(!(ns0 == 0));
 
     int Divu_Type, Divu;
     Real gravity = 0;
@@ -1981,92 +1981,35 @@ Projection::set_outflow_bcs_at_level (int          which_call,
                                       int          have_divu,
                                       Real         gravity)
 {
-    BL_ASSERT(dynamic_cast<NavierStokesBase*>(LevelData[lev]) != nullptr);
+    AMREX_ASSERT(dynamic_cast<NavierStokesBase*>(LevelData[lev]) != nullptr);
 
     Box domain = parent->Geom(lev).Domain();
 
     const int ncStripWidth = 1;
 
-    FArrayBox  rho[2*AMREX_SPACEDIM];
-    FArrayBox dsdt[2*AMREX_SPACEDIM];
-    FArrayBox dudt[1][2*AMREX_SPACEDIM];
     FArrayBox phi_fine_strip[2*AMREX_SPACEDIM];
-
+    FArrayBox            rho[2*AMREX_SPACEDIM];
+    
     const int ngrow = 1;
 
     for (int iface = 0; iface < numOutFlowFaces; iface++)
     {
-        dsdt[iface].resize(state_strip[iface],1);
-        dudt[0][iface].resize(state_strip[iface],AMREX_SPACEDIM);
-
-        rho[iface].resize(state_strip[iface],1);
-
-        (*Sig_in).copyTo(rho[iface],0,0,1,ngrow);
-
         Box phi_strip = amrex::surroundingNodes(amrex::bdryNode(domain,
                                                 outFacesAtThisLevel[iface],
                                                 ncStripWidth));
         phi_fine_strip[iface].resize(phi_strip,1);
-        if (Gpu::inLaunchRegion()) {
-           phi_fine_strip[iface].setVal<RunOn::Gpu>(0.);
-        } else {
-           phi_fine_strip[iface].setVal<RunOn::Cpu>(0.);
-        }
+	phi_fine_strip[iface].setVal<RunOn::Gpu>(0.);
+
+	rho[iface].resize(state_strip[iface],1);
+	(*Sig_in).copyTo(rho[iface],0,0,1,ngrow);
     }
 
-    ProjOutFlowBC projBC;
-    // These bcs just get passed into rhogbc() for all vals of which_call
-    int        lo_bc[AMREX_SPACEDIM];
-    int        hi_bc[AMREX_SPACEDIM];
-    // change from phys_bcs of Inflow, SlipWall, etc.
-    // to mathematical bcs of EXT_DIR, FOEXTRAP, etc.
-    for (int i = 0; i < AMREX_SPACEDIM; i++)
-    {
-      const int* lbc = phys_bc->lo();
-      const int* hbc = phys_bc->hi();
+    if (std::fabs(gravity) > 0.)
+      computeRhoG(rho,phi_fine_strip,
+		  parent->Geom(lev),
+		  outFacesAtThisLevel,numOutFlowFaces,gravity);
 
-      lo_bc[i]=scalar_bc[lbc[i]];
-      hi_bc[i]=scalar_bc[hbc[i]];
-    }
-    if (which_call == INITIAL_PRESS)
-    {
-        projBC.computeRhoG(rho,phi_fine_strip,
-                           parent->Geom(lev),
-                           outFacesAtThisLevel,numOutFlowFaces,gravity,
-                           lo_bc,hi_bc);
-    }
-    else
-    {
-        Vel_in->FillBoundary();
-
-        for (int iface = 0; iface < numOutFlowFaces; iface++)
-            (*Vel_in).copyTo(dudt[0][iface],0,0,AMREX_SPACEDIM,1);
-        
-        if (have_divu) {
-            for (int iface = 0; iface < numOutFlowFaces; iface++)
-                (*Divu_in).copyTo(dsdt[iface],0,0,1,1);
-        } else {
-            for (int iface = 0; iface < numOutFlowFaces; iface++)
-              if (Gpu::inLaunchRegion()) {
-                 dsdt[iface].setVal<RunOn::Gpu>(0.);
-              } else {
-                 dsdt[iface].setVal<RunOn::Cpu>(0.);
-              }
-        }
-
-        projBC.computeBC(dudt, dsdt, rho, phi_fine_strip,
-                         parent->Geom(lev),
-                         outFacesAtThisLevel,
-                         numOutFlowFaces, lo_bc, hi_bc, gravity);
-    }
-
-    for (int i = 0; i < 2*AMREX_SPACEDIM; i++)
-    {
-        rho[i].clear();
-        dsdt[i].clear();
-        dudt[0][i].clear();
-    }
-
+    // fixme - there's a cleaner way to do this
     for ( int iface = 0; iface < numOutFlowFaces; iface++)
     {
         BoxArray phi_fine_strip_ba(phi_fine_strip[iface].box());
@@ -2080,7 +2023,7 @@ Projection::set_outflow_bcs_at_level (int          which_call,
 #endif
         for (MFIter mfi(phi_fine_strip_mf,TilingIfNotGPU()); mfi.isValid(); ++mfi) {
           const Box& bx = mfi.tilebox();
-          BL_ASSERT((phi_fine_strip[iface].box()).contains(bx));
+          AMREX_ASSERT((phi_fine_strip[iface].box()).contains(bx));
           const auto& phi_f_mf = phi_fine_strip_mf.array(mfi); 
           const auto& phi_f    = phi_fine_strip[iface].array();
           amrex::ParallelFor(bx, [phi_f_mf,phi_f]
@@ -2100,6 +2043,449 @@ Projection::set_outflow_bcs_at_level (int          which_call,
     }
 }
 
+
+void
+Projection::computeRhoG(FArrayBox*         rhoFab,
+			FArrayBox*         phiFab,
+			const Geometry&    geom, 
+			Orientation*       outFaces,
+			int                numOutFlowFaces,
+			Real               gravity)
+{
+    AMREX_ASSERT(std::fabs(gravity) > 0.);
+  
+    for (int iface = 0; iface < numOutFlowFaces; iface++)
+    {
+      int outDir             = outFaces[iface].coordDir();
+      Orientation::Side side = outFaces[iface].faceDir();
+
+      if (outDir == (AMREX_SPACEDIM-1))
+      {
+	  if (side == Orientation::high) {
+	    //
+	    // Hydrostatic pressure == 0 here, given IAMR definition of gravity.
+	    // Do nothing, since phi already initialized to zero
+	    //
+	  } else {
+	    amrex::Abort("Projection::computeRhoG : Simulation box has outflow boundary condition on the bottom and gravity != 0. If this is really the desired configuration, just comment out this Abort");
+	  }
+      }
+      else // integrate rho * g* dh
+      {
+	  const auto   lo = amrex::lbound(phiFab[iface].box());
+	  const auto   hi = amrex::ubound(phiFab[iface].box());
+	  const auto& phi = phiFab[iface].array();
+	  const auto& rho = rhoFab[iface].array();
+	  const Real dh = geom.CellSize(AMREX_SPACEDIM-1);
+	  
+	  auto add_rhog = [gravity, dh] ( Real rho1, Real rho2,
+					  Real& rhog_i, Real& phi_i )
+	  {
+	    Real rhoExt = 0.5*(3.*rho1-rho2);
+	    rhog_i -= gravity * rhoExt * dh;
+	    phi_i  += rhog_i;
+	  };
+
+
+#if (AMREX_SPACEDIM == 2)
+	  //
+	  // Only possibilities are XLO face or XHI
+	  //
+	  // Ok to only use low index of phi because phi is only one
+	  // node wide in i-direction.
+	  //
+	  AMREX_ASSERT( lo.x==hi.x );
+	  int i = lo.x;
+	
+	  Real rhog = 0.;
+	  //
+	  // Note that the integral here prevents parallelization
+	  //
+	  if (side == Orientation::low)
+	  {
+	    for (int j = hi.y-1; j >= lo.y; j--) {
+	      add_rhog(rho(i,j,0),rho(i+1,j,0),rhog,phi(i,j,0));
+	    }
+	  }
+	  else
+	  {
+	    for (int j = hi.y-1; j >= lo.y; j--) {
+	      add_rhog(rho(i-1,j,0),rho(i-2,j,0),rhog,phi(i,j,0));
+	    }
+	  }
+#else
+	  const Box& domain = geom.Domain();
+	  const auto domlo = amrex::lbound(domain);
+	  const auto domhi = amrex::ubound(domain);
+	  
+	  // fixme? Could make use of NSB::m_bcrec_scalars here.
+	  int        lo_bc[AMREX_SPACEDIM];
+	  int        hi_bc[AMREX_SPACEDIM];
+	  //
+	  // change from phys_bcs of Inflow, SlipWall, etc.
+	  // to mathematical bcs of EXT_DIR, FOEXTRAP, etc.
+	  //
+	  for (int i = 0; i < AMREX_SPACEDIM; i++)
+	  {
+	      const int* lbc = phys_bc->lo();
+	      const int* hbc = phys_bc->hi();
+	      
+	      lo_bc[i]=scalar_bc[lbc[i]];
+	      hi_bc[i]=scalar_bc[hbc[i]];
+	  }
+
+	  //
+	  // fixme? - TODO: Could parallelize here by dividing the loop over i (or j)
+	  // only and thus the k integration stays intact. However, would want to move
+	  // this declaration of rho_i, rho_ii to ensure each k integration has it's own 
+	  // copy.
+	  //
+	  Real rho_i, rho_ii;
+	  
+	  if ( outDir == int(Direction::x) )
+	  {
+	      // 
+	      // Ok to only use low index of phi because phi is only one
+	      // node wide in i-direction.
+	      //
+	      AMREX_ASSERT( lo.x==hi.x );
+	      int i = lo.x;
+	      
+	      bool has_extdir_lo = (lo.y==domlo.y   && lo_bc[1]==BCType::ext_dir);
+	      bool has_extdir_hi = (hi.y==domhi.y+1 && hi_bc[1]==BCType::ext_dir);
+	      bool has_hoextrap_lo = (lo.y==domlo.y   && lo_bc[1]==BCType::hoextrap);
+	      bool has_hoextrap_hi = (hi.y==domhi.y+1 && hi_bc[1]==BCType::hoextrap);
+	      bool has_foextrap_lo = (lo.y==domlo.y   && lo_bc[1]==BCType::foextrap);
+	      bool has_foextrap_hi = (hi.y==domhi.y+1 && hi_bc[1]==BCType::foextrap);
+
+	      //
+	      // If there are any of the above mentioned bcs, then we'll need to handle
+	      // edges separately in accordance with those conditions, so set bounds for
+	      // loop over j accordingly.
+	      //
+	      int jlo, jhi;
+	      if ( has_extdir_lo || has_hoextrap_lo || has_foextrap_lo ) {
+		jlo = lo.y+1;
+	      } else {
+		jlo = lo.y;
+	      }
+	      if ( has_extdir_hi || has_hoextrap_hi || has_foextrap_hi ) {
+		jhi = hi.y-1;
+	      } else {
+		jhi = hi.y;
+	      }
+
+	      //
+	      // xlo face
+	      //
+	      if (side == Orientation::low)
+	      {
+		for (int j = jlo; j <= jhi; j++)
+		{
+		  Real rhog = 0.;
+		  
+		  for (int k = hi.z-1; k >= lo.z; k--) {
+		    rho_i  = 0.5 * (rho(i  ,j,k) + rho(i  ,j-1,k));
+		    rho_ii = 0.5 * (rho(i+1,j,k) + rho(i+1,j-1,k));
+		    add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		  }
+		}
+		//
+		// Now compute y-edges if needed
+		//
+		if ( has_extdir_lo || has_hoextrap_lo || has_foextrap_lo )
+		{
+		  int j = lo.y; 
+		  Real rhog = 0.;
+		  
+		  if ( has_extdir_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i  = rho(i  ,j-1,k);
+		      rho_ii = rho(i+1,j-1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i  = 0.5*(3.*rho(i  ,j,k) - rho(i  ,j+1,k));
+		      rho_ii = 0.5*(3.*rho(i+1,j,k) - rho(i+1,j+1,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i  = rho(i  ,j,k);
+		      rho_ii = rho(i+1,j,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  }
+		}
+
+		if ( has_extdir_hi || has_hoextrap_hi || has_foextrap_hi )
+		{
+		  int j = hi.y;
+		  Real rhog = 0;
+		  
+		  if ( has_extdir_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i  = rho(i  ,j,k);
+		      rho_ii = rho(i+1,j,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i  = 0.5*(3.*rho(i  ,j-1,k) - rho(i  ,j-2,k));
+		      rho_ii = 0.5*(3.*rho(i+1,j-1,k) - rho(i+1,j-2,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i  = rho(i  ,j-1,k);
+		      rho_ii = rho(i+1,j-1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } 
+		}
+	      }
+	      else // xhi face 
+	      {
+		for (int j = jlo; j <= jhi; j++)
+		{
+		  Real rhog = 0.;
+		  
+		  for (int k = hi.z-1; k >= lo.z; k--) {
+		    rho_i   = 0.5 * (rho(i-1,j,k) + rho(i-1,j-1,k));
+		    rho_ii = 0.5 * (rho(i-2,j,k) + rho(i-2,j-1,k));
+		    add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		  }
+		}
+		//
+		// Now compute y-edges if needed
+		//
+		if ( has_extdir_lo || has_hoextrap_lo || has_foextrap_lo )
+		{
+		  int j = lo.y; 
+		  Real rhog = 0.;
+		  
+		  if ( has_extdir_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j-1,k);
+		      rho_ii = rho(i-2,j-1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = 0.5*(3.*rho(i-1,j,k) - rho(i-1,j+1,k));
+		      rho_ii = 0.5*(3.*rho(i-2,j,k) - rho(i-2,j+1,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j,k);
+		      rho_ii = rho(i-2,j,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } 
+		}
+
+		if ( has_extdir_hi || has_hoextrap_hi || has_foextrap_hi )
+		{
+		  int j = hi.y;
+		  Real rhog = 0;
+		  
+		  if ( has_extdir_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j,k);
+		      rho_ii = rho(i-2,j,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = 0.5*(3.*rho(i-1,j-1,k) - rho(i-1,j-2,k));
+		      rho_ii = 0.5*(3.*rho(i-2,j-1,k) - rho(i-2,j-2,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j-1,k);
+		      rho_ii = rho(i-2,j-1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } 
+		}
+	      }
+	  }
+	  else // ( outDir == Direction::y ) 
+	  {
+	      //
+	      // Ok to only use low index of phi because phi is only one
+	      // node wide in i-direction.
+	      //
+	      AMREX_ASSERT( lo.y==hi.y );
+	      int j = lo.y;
+
+	      bool has_extdir_lo = (lo.x==domlo.x   && lo_bc[0]==BCType::ext_dir);
+	      bool has_extdir_hi = (hi.x==domhi.x+1 && hi_bc[0]==BCType::ext_dir);
+	      bool has_hoextrap_lo = (lo.x==domlo.x   && lo_bc[0]==BCType::hoextrap);
+	      bool has_hoextrap_hi = (hi.x==domhi.x+1 && hi_bc[0]==BCType::hoextrap);
+	      bool has_foextrap_lo = (lo.x==domlo.x   && lo_bc[0]==BCType::foextrap);
+	      bool has_foextrap_hi = (hi.x==domhi.x+1 && hi_bc[0]==BCType::foextrap);
+	      //
+	      // If there are any of the above mentioned bcs, then we'll need to handle
+	      // edges separately in accordance with those conditions, so set bounds for
+	      // loop over i accordingly.
+	      //
+	      int ilo, ihi;
+	      if ( has_extdir_lo || has_hoextrap_lo || has_foextrap_lo ) {
+		ilo = lo.x+1;
+	      } else {
+		ilo = lo.x;
+	      }
+	      if ( has_extdir_hi || has_hoextrap_hi || has_foextrap_hi ) {
+		ihi = hi.x-1;
+	      } else {
+		ihi = hi.x;
+	      }
+	      //
+	      // ylo face
+	      //
+	      if (side == Orientation::low)
+	      {
+		for (int i = ilo; i <= ihi; i++)
+		{
+		  Real rhog = 0.;
+		  
+		  for (int k = hi.z-1; k >= lo.z; k--) {
+		    rho_i   = 0.5 * (rho(i,j  ,k) + rho(i-1,j ,k));
+		    rho_ii = 0.5 * (rho(i,j+1,k) + rho(i-1,j+1,k));
+		    add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		  }
+		}
+		//
+		// Now compute x-edges if needed
+		//
+		if ( has_extdir_lo || has_hoextrap_lo || has_foextrap_lo )
+		{
+		  int i = lo.x; 
+		  Real rhog = 0.;
+		  
+		  if ( has_extdir_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j  ,k);
+		      rho_ii = rho(i-1,j+1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = 0.5*(3.*rho(i,j  ,k) - rho(i+1,j  ,k));
+		      rho_ii = 0.5*(3.*rho(i,j+1,k) - rho(i+1,j+1,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i,j  ,k);
+		      rho_ii = rho(i,j+1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  }
+		}
+
+		if ( has_extdir_hi || has_hoextrap_hi || has_foextrap_hi )
+		{
+		  int i = hi.x;
+		  Real rhog = 0;
+		  
+		  if ( has_extdir_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i,j  ,k);
+		      rho_ii = rho(i,j+1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = 0.5*(3.*rho(i-1,j  ,k) - rho(i-2,j  ,k));
+		      rho_ii = 0.5*(3.*rho(i-1,j+1,k) - rho(i-2,j+1,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j  ,k);
+		      rho_ii = rho(i-1,j+1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } 
+		}
+	      }
+	      else // yhi face 
+	      {
+		for (int i = ilo; i <= ihi; i++)
+		{
+		  Real rhog = 0.;
+		  
+		  for (int k = hi.z-1; k >= lo.z; k--) {
+		    rho_i   = 0.5 * (rho(i,j-1,k) + rho(i-1,j-1,k));
+		    rho_ii = 0.5 * (rho(i,j-1,k) + rho(i-1,j-2,k));
+		    add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		  }
+		}
+		//
+		// Now compute y-edges if needed
+		//
+		if ( has_extdir_lo || has_hoextrap_lo || has_foextrap_lo )
+		{
+		  int i = lo.x; 
+		  Real rhog = 0.;
+		  
+		  if ( has_extdir_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j-1,k);
+		      rho_ii = rho(i-2,j-1,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = 0.5*(3.*rho(i,j-1,k) - rho(i+1,j-1,k));
+		      rho_ii = 0.5*(3.*rho(i,j-2,k) - rho(i+1,j-2,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_lo ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i,j-1,k);
+		      rho_ii = rho(i,j-2,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } 
+		}
+
+		if ( has_extdir_hi || has_hoextrap_hi || has_foextrap_hi )
+		{
+		  int i = hi.x;
+		  Real rhog = 0;
+		  
+		  if ( has_extdir_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i,j-1,k);
+		      rho_ii = rho(i,j-2,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_hoextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = 0.5*(3.*rho(i-1,j-1,k) - rho(i-2,j-1,k));
+		      rho_ii = 0.5*(3.*rho(i-1,j-2,k) - rho(i-2,j-2,k));
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } else if ( has_foextrap_hi ) {
+		    for (int k = hi.z-1; k >= lo.z; k--) {
+		      rho_i   = rho(i-1,j-1,k);
+		      rho_ii = rho(i-1,j-2,k);
+		      add_rhog(rho_i, rho_ii, rhog, phi(i,j,k));
+		    }
+		  } 
+		}
+	      } // endif over hi/low sides 
+	  } // endif over directions
+#endif
+      } // endif integrate rho*g*dh
+    } // end loop over outflow faces
+}
 
 //
 // Given vel, rhcc, rhnd, & sig, this solves Div (sig * Grad phi) = Div vel + (rhcc + rhnd).
@@ -2124,42 +2510,32 @@ void Projection::doMLMGNodalProjection (int c_lev, int nlevel,
     Vector<MultiFab> vel_test(nlevel);
     Vector<MultiFab> phi_test(nlevel);
 
-    BL_ASSERT(vel[c_lev]->nGrow() >= 1);
-    BL_ASSERT(vel[f_lev]->nGrow() >= 1);
-    BL_ASSERT(phi[c_lev]->nGrow() == 1);
-    BL_ASSERT(phi[f_lev]->nGrow() == 1);
-    // MLMG does not copy any ghost cells from sig
-    // BL_ASSERT(sig[c_lev]->nGrow() == 1);
-    // BL_ASSERT(sig[f_lev]->nGrow() == 1);
+    AMREX_ASSERT(vel[c_lev]->nGrow() >= 1);
+    AMREX_ASSERT(vel[f_lev]->nGrow() >= 1);
+    AMREX_ASSERT(phi[c_lev]->nGrow() == 1);
+    AMREX_ASSERT(phi[f_lev]->nGrow() == 1);
+    // MLMG does not copy any ghost cells from sig, rhcc or rhnd; fills ghost cells internally 
+    // AMREX_ASSERT(sig[c_lev]->nGrow() == 1);
+    // AMREX_ASSERT(sig[f_lev]->nGrow() == 1);
 
-    BL_ASSERT(sig[c_lev]->nComp() == 1);
-    BL_ASSERT(sig[f_lev]->nComp() == 1);
+    AMREX_ASSERT(sig[c_lev]->nComp() == 1);
+    AMREX_ASSERT(sig[f_lev]->nComp() == 1);
 
     if (sync_resid_crse != 0) {
-        BL_ASSERT(nlevel == 1);
-        BL_ASSERT(c_lev < parent->finestLevel());
+        AMREX_ASSERT(nlevel == 1);
+        AMREX_ASSERT(c_lev < parent->finestLevel());
     }
 
     if (sync_resid_fine != 0) {
-        BL_ASSERT((nlevel == 1 || nlevel == 2));
-        BL_ASSERT(c_lev > 0);
+        AMREX_ASSERT((nlevel == 1 || nlevel == 2));
+        AMREX_ASSERT(c_lev > 0);
     }
 
     if (!rhcc.empty() )
-    {
         AMREX_ALWAYS_ASSERT(rhcc[c_lev]->boxArray().ixType().cellCentered());
-   // MLNodeLaplacian only uses vaild cells from rhcc and rhnd; fills ghost cells internally
-        // BL_ASSERT(rhcc[c_lev]->nGrow() == 1);
-        // BL_ASSERT(rhcc[f_lev]->nGrow() == 1);
-    }
 
     if (!rhnd.empty() )
-    {
         AMREX_ALWAYS_ASSERT(rhnd[c_lev]->boxArray().ixType().nodeCentered());
-        // Do we need these two checks ??? -- no, see above
-        // BL_ASSERT(rhnd[c_lev]->nGrow() == 1);
-        // BL_ASSERT(rhnd[f_lev]->nGrow() == 1);
-    }
 
     set_boundary_velocity(c_lev, nlevel, vel, true);
 
@@ -2398,11 +2774,7 @@ void Projection::set_boundary_velocity(int c_lev, int nlevel, const Vector<Multi
 	  for (BoxList::iterator it=bxlist2.begin(); it != bxlist2.end(); ++it) {
             Box ovlp = *it & v_fab.box();
             if (ovlp.ok()) {
-              if (Gpu::inLaunchRegion()) {
 		v_fab.setVal<RunOn::Gpu>(0.0, ovlp, Xvel+idir, 1);
-              } else {
-		v_fab.setVal<RunOn::Cpu>(0.0, ovlp, Xvel+idir, 1);
-              }
             }
 	  }
 	}

@@ -234,6 +234,13 @@ public:
                                    int          have_divu,
                                    amrex::Real         gravity);
 
+    void computeRhoG (amrex::FArrayBox*         rhoFab,
+                      amrex::FArrayBox*         phiFab,
+                      const amrex::Geometry&    geom,
+                      amrex::Orientation*       outFaces,
+                      int                numOutFlowFaces,
+                      amrex::Real               gravity);
+
     void putDown(const amrex::Vector<amrex::MultiFab*>& phi, amrex::FArrayBox* phi_fine_strip,
 		 int c_lev, int f_lev, const amrex::Orientation* outFaces,
 		 int numOutFlowFaces, int ncStripWidth);
