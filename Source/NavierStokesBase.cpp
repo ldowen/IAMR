@@ -1923,10 +1923,13 @@ NavierStokesBase::initialTimeStep ()
 // pressure solver in Pnew, we need to copy it to Pold at the start.
 //
 void
-NavierStokesBase::initOldFromNew (int type)
+NavierStokesBase::initOldFromNew (int type, int lev)
 {
-    MultiFab& new_t = get_new_data(type);
-    MultiFab& old_t = get_old_data(type);
+    if ( lev < 0 )
+      lev = level;
+  
+    MultiFab& new_t = getLevel(lev).get_new_data(type);
+    MultiFab& old_t = getLevel(lev).get_old_data(type);
 
     MultiFab::Copy(old_t, new_t, 0, 0, old_t.nComp(), old_t.nGrow());
 }
@@ -2478,10 +2481,12 @@ NavierStokesBase::post_init_state ()
     //
     if(!do_init_proj)
     {
-      initOldFromNew(Press_Type);
-      initOldFromNew(Gradp_Type);
+      for (int k = finest_level; k>= 0; k--)
+      {
+	initOldFromNew(Press_Type, k);
+	initOldFromNew(Gradp_Type, k);
     }
-
+    }
 }
 
 //
@@ -2932,10 +2937,12 @@ NavierStokesBase::scalar_advection_update (Real dt,
     {
         const MultiFab& rho_halftime = get_rho_half_time();
 	MultiFab Vel(grids, dmap, AMREX_SPACEDIM, 0, MFInfo(), Factory());
-	// Average mac velocity to cell-centers for use in generating external
+	//
+	// Average mac face velocity to cell-centers for use in generating external
 	// forcing term in getForce()
 	// NOTE that default getForce() does not use Vel or Scal, user must supply the
 	// forcing function for that case.
+	//
 #ifdef AMREX_USE_EB
 	// FIXME - this isn't quite right because it's face-centers to cell-centers
 	// what's really wanted is face-centroid to cell-centroid
@@ -3523,6 +3530,7 @@ NavierStokesBase::velocity_advection (Real dt)
         int ngrow = 1;
 
         MultiFab forcing_term( grids, dmap, AMREX_SPACEDIM, ngrow );
+	// fixme - sterm would be better as a pointer
         MultiFab S_term( grids, dmap, AMREX_SPACEDIM,  godunov_hyp_grow);
 
         // Why in the original code it does this:
@@ -3735,10 +3743,12 @@ NavierStokesBase::velocity_advection_update (Real dt)
     MultiFab& Rh = get_rho_half_time();
 
     MultiFab Vel(grids, dmap, AMREX_SPACEDIM, 0, MFInfo(), Factory());
-    // Average mac velocity to cell-centers for use in generating external
+    //
+    // Average mac face velocity to cell-centers for use in generating external
     // forcing term in getForce()
     // NOTE that default getForce() does not use Vel or Scal, user must supply the
     // forcing function for that case.
+    //
 #ifdef AMREX_USE_EB
     // FIXME - this isn't quite right because it's face-centers to cell-centers
     // what's really wanted is face-centroid to cell-centroid
@@ -3765,10 +3775,8 @@ NavierStokesBase::velocity_advection_update (Real dt)
         if (getForceVerbose)
            amrex::Print() << "---" << '\n' << "F - velocity advection update (half time):" << '\n';
         //
-        // Average the mac face velocities to get cell centred velocities.
         // Average the new and old time to get Crank-Nicholson half time approximation.
         //
-        //FIXME - need to address this for EB
         auto const& scal = ScalFAB.array();
         Elixir scal_i = ScalFAB.elixir();
         auto const& scal_o = U_old.array(mfi,Density);
