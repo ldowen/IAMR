@@ -2,7 +2,7 @@
 #include <NS_util.H>
 #include <iamr_mol_edge_state_K.H>
 
-#if AMREX_USE_EB
+#ifdef AMREX_USE_EB
 #include <iamr_mol_eb_edge_state_K.H>
 #endif
 
@@ -203,8 +203,8 @@ MOL::EB_ComputeEdgeState ( Box const& bx,
         )
 #elif (AMREX_SPACEDIM == 3)
         or
-        (has_extdir_or_ho_lo_z and domain_jlo >= wbx.smallEnd(2)-1) or
-        (has_extdir_or_ho_hi_z and domain_jhi <= wbx.bigEnd(2)    ) )
+        (has_extdir_or_ho_lo_z and domain_klo >= wbx.smallEnd(2)-1) or
+        (has_extdir_or_ho_hi_z and domain_khi <= wbx.bigEnd(2)    ) )
 #endif
     {
 
